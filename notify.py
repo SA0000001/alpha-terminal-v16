@@ -24,45 +24,77 @@ HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 def veri_cek():
     v = {}
 
-    # BTC
-    try:
-        r = requests.get(
-            "https://api.coinpaprika.com/v1/tickers/btc-bitcoin",
-            headers=HEADERS, timeout=8).json()["quotes"]["USD"]
-        v["BTC_P"]   = f"${r['price']:,.0f}"
-        v["BTC_C"]   = f"{r['percent_change_24h']:.2f}%"
-        v["Vol_24h"] = f"${r['volume_24h']:,.0f}"
-    except:
-        v["BTC_P"]="—"; v["BTC_C"]="—"; v["Vol_24h"]="—"
-
-    # Altcoinler
-    alt_ids = {"ETH":"eth-ethereum","SOL":"sol-solana","BNB":"bnb-binance-coin","XRP":"xrp-xrp"}
+    # ── BTC + tüm altcoinler (Coinpaprika) ───────────────
+    alt_ids = {
+        "BTC":"btc-bitcoin","ETH":"eth-ethereum","SOL":"sol-solana",
+        "BNB":"bnb-binance-coin","XRP":"xrp-xrp","ADA":"ada-cardano",
+        "AVAX":"avax-avalanche","LINK":"link-chainlink","DOT":"dot-polkadot"
+    }
     for sym, cid in alt_ids.items():
         try:
             r = requests.get(f"https://api.coinpaprika.com/v1/tickers/{cid}",
-                             headers=HEADERS, timeout=6).json()["quotes"]["USD"]
+                             headers=HEADERS, timeout=8).json()["quotes"]["USD"]
             v[f"{sym}_P"] = f"${r['price']:,.2f}"
             v[f"{sym}_C"] = f"{r['percent_change_24h']:.2f}%"
+            v[f"{sym}_7D"] = f"{r['percent_change_7d']:.2f}%"
+            if sym=="BTC":
+                v["BTC_P"]    = f"${r['price']:,.0f}"
+                v["Vol_24h"]  = f"${r['volume_24h']:,.0f}"
+                v["MCap_BTC"] = f"${r['market_cap']:,.0f}"
         except:
-            v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"
+            v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"; v[f"{sym}_7D"]="—"
 
-    # Makro
-    for key, sym in [("SP500","^GSPC"),("VIX","^VIX"),("DXY","DX-Y.NYB"),
-                     ("GOLD","GC=F"),("US10Y","^TNX"),("USDTRY","TRY=X")]:
+    # ── Global piyasa dominance (Coinpaprika) ─────────────
+    try:
+        g = requests.get("https://api.coinpaprika.com/v1/global",
+                         headers=HEADERS, timeout=6).json()
+        v["Dom"]        = f"%{g['bitcoin_dominance_percentage']:.2f}"
+        v["Total_MCap"] = f"${g['market_cap_usd']/1e12:.2f}T"
+        v["Total_Vol"]  = f"${g['volume_24h_usd']/1e9:.1f}B"
+    except:
+        v["Dom"]="—"; v["Total_MCap"]="—"; v["Total_Vol"]="—"
+
+    # ── Hisse endeksleri + emtialar + forex (yFinance) ────
+    yf_data = {
+        "SP500":"^GSPC","NASDAQ":"^IXIC","DOW":"^DJI",
+        "DAX":"^GDAXI","NIKKEI":"^N225","BIST100":"XU100.IS",
+        "VIX":"^VIX","DXY":"DX-Y.NYB","US10Y":"^TNX",
+        "GOLD":"GC=F","SILVER":"SI=F","OIL":"CL=F","NATGAS":"NG=F",
+        "USDTRY":"TRY=X","EURUSD":"EURUSD=X","USDJPY":"JPY=X",
+    }
+    for key, sym in yf_data.items():
         try:
-            df = yf.Ticker(sym).history(period="5d")
-            curr=df["Close"].iloc[-1]; prev=df["Close"].iloc[-2]
-            v[key]=f"{curr:,.2f}"; v[f"{key}_C"]=f"{(curr-prev)/prev*100:.2f}%"
+            df   = yf.Ticker(sym).history(period="5d")
+            curr = df["Close"].iloc[-1]; prev = df["Close"].iloc[-2]
+            v[key]        = f"{curr:,.3f}"
+            v[f"{key}_C"] = f"{(curr-prev)/prev*100:.2f}%"
         except:
             v[key]="—"; v[f"{key}_C"]="—"
 
-    # Korku/Açgözlülük
-    try:
-        fng = requests.get("https://api.alternative.me/fng/",timeout=5).json()["data"][0]
-        v["FNG"] = f"{fng['value']} ({fng['value_classification']})"
-    except: v["FNG"]="—"
+    # ── ETF (yFinance — son kapanış) ──────────────────────
+    for sym in ["IBIT","FBTC","BITB","ARKB"]:
+        try:
+            df   = yf.Ticker(sym).history(period="10d")
+            curr = df["Close"].iloc[-1]; prev = df["Close"].iloc[-2]
+            v[f"{sym}_P"]   = f"${curr:.2f}"
+            v[f"{sym}_C"]   = f"{(curr-prev)/prev*100:.2f}%"
+            v[f"{sym}_Vol"] = f"{int(df['Volume'].iloc[-1]):,}"
+            if sym=="IBIT":
+                flow = int(df["Volume"].iloc[-1])*(curr-prev)
+                v["IBIT_Flow"] = f"{'📈 +' if flow>0 else '📉 '}{abs(flow/1e6):.1f}M $"
+        except:
+            v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"
+    if "IBIT_Flow" not in v: v["IBIT_Flow"]="—"
 
-    # Balina duvarları (Kraken)
+    # ── Korku/Açgözlülük ─────────────────────────────────
+    try:
+        fng = requests.get("https://api.alternative.me/fng/?limit=2",timeout=5).json()["data"]
+        v["FNG"]      = f"{fng[0]['value']} ({fng[0]['value_classification']})"
+        v["FNG_PREV"] = f"{fng[1]['value']} ({fng[1]['value_classification']})"
+    except:
+        v["FNG"]="—"; v["FNG_PREV"]="—"
+
+    # ── Balina duvarları (Kraken) ─────────────────────────
     try:
         ob  = requests.get("https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=500",timeout=8).json()
         pk  = list(ob["result"].keys())[0]
@@ -75,49 +107,75 @@ def veri_cek():
             d={}
             for p,q in data: k=fn(p); d[k]=d.get(k,0)+q
             return max(d.items(),key=lambda x:x[1])
-        sw,sv=bkt(fb,lambda p:int(p/bs)*bs)
-        rw,rv=bkt(fa,lambda p:int((p/bs)+1)*bs)
-        v["Sup_Wall"]=f"${sw:,}"; v["Sup_Vol"]=f"{int(sv):,} BTC"
-        v["Res_Wall"]=f"${rw:,}"; v["Res_Vol"]=f"{int(rv):,} BTC"
+        sw,sv = bkt(fb,lambda p:int(p/bs)*bs)
+        rw,rv = bkt(fa,lambda p:int((p/bs)+1)*bs)
+        v["Sup_Wall"]=f"${sw:,}"; v["Sup_Vol"]=f"{int(sv):,}"
+        v["Res_Wall"]=f"${rw:,}"; v["Res_Vol"]=f"{int(rv):,}"
+        v["BTC_Now"]  = f"${cur:,.0f}"
     except:
-        v["Sup_Wall"]="—"; v["Sup_Vol"]="—"; v["Res_Wall"]="—"; v["Res_Vol"]="—"
+        v["Sup_Wall"]="—"; v["Sup_Vol"]="—"
+        v["Res_Wall"]="—"; v["Res_Vol"]="—"; v["BTC_Now"]="—"
 
-    # OI & Funding (Kraken Futures)
+    # ── OI & Funding (Kraken Futures) ─────────────────────
     try:
         kt = requests.get("https://futures.kraken.com/derivatives/api/v3/tickers",
                           headers=HEADERS, timeout=6).json()
         t  = next((x for x in kt["tickers"] if x["symbol"]=="PF_XBTUSD"), None)
         if t:
-            v["OI"] = f"{t.get('openInterest','—'):,.0f} BTC"
-            fr = t.get("fundingRate")
+            v["OI"] = f"{float(t.get('openInterest',0)):,.0f} BTC"
+            fr      = t.get("fundingRate")
             v["FR"] = f"%{float(fr)*100:.4f}" if fr else "—"
-    except: v["OI"]="—"; v["FR"]="—"
+    except:
+        v["OI"]="—"; v["FR"]="—"
 
-    # Long/Short (Bitfinex)
+    # ── Long/Short (Bitfinex) ─────────────────────────────
     try:
-        lv = abs(float(requests.get(
+        lv  = abs(float(requests.get(
             "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:long/hist?limit=1",
             headers=HEADERS, timeout=6).json()[0][1]))
-        sv2= abs(float(requests.get(
+        sv2 = abs(float(requests.get(
             "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:short/hist?limit=1",
             headers=HEADERS, timeout=6).json()[0][1]))
-        tot= lv+sv2; ratio=lv/sv2 if sv2>0 else 1
-        v["LS_Ratio"]=f"{ratio:.3f}"
-        v["Long_Pct"]=f"%{lv/tot*100:.1f}"
-        v["Short_Pct"]=f"%{sv2/tot*100:.1f}"
-        v["LS_Signal"]="🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
+        tot = lv+sv2; ratio=lv/sv2 if sv2>0 else 1
+        v["LS_Ratio"] = f"{ratio:.3f}"
+        v["Long_Pct"] = f"%{lv/tot*100:.1f}"
+        v["Short_Pct"]= f"%{sv2/tot*100:.1f}"
+        v["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
     except:
         v["LS_Ratio"]="—"; v["Long_Pct"]="—"; v["Short_Pct"]="—"; v["LS_Signal"]="—"
 
-    # Stablecoin (DeFiLlama)
+    # ── Stablecoin (DeFiLlama) ────────────────────────────
     try:
-        sc   = requests.get("https://stablecoins.llama.fi/stablecoins?includePrices=true",
-                            headers=HEADERS, timeout=8).json()["peggedAssets"]
-        total= sum(c.get("circulating",{}).get("peggedUSD",0) for c in sc)
+        sc    = requests.get("https://stablecoins.llama.fi/stablecoins?includePrices=true",
+                             headers=HEADERS, timeout=8).json()["peggedAssets"]
+        total = sum(c.get("circulating",{}).get("peggedUSD",0) for c in sc)
+        def gcap(sym):
+            c=next((x for x in sc if x["symbol"].upper()==sym),None)
+            return f"${c['circulating']['peggedUSD']/1e9:.1f}B" if c else "—"
         v["Total_Stable"] = f"${total/1e9:.1f}B"
-    except: v["Total_Stable"]="—"
+        v["USDT_MCap"]    = gcap("USDT")
+        v["USDC_MCap"]    = gcap("USDC")
+    except:
+        v["Total_Stable"]="—"; v["USDT_MCap"]="—"; v["USDC_MCap"]="—"
 
-    # M2 & FED (FRED)
+    # ── BTC Korelasyonları (30 günlük) ────────────────────
+    try:
+        cd = yf.download(["BTC-USD","^GSPC","GC=F"],period="30d",progress=False)["Close"]
+        cm = cd.corr()
+        v["Corr_SP500"] = f"{cm.loc['BTC-USD','^GSPC']:.2f}"
+        v["Corr_Gold"]  = f"{cm.loc['BTC-USD','GC=F']:.2f}"
+    except:
+        v["Corr_SP500"]="—"; v["Corr_Gold"]="—"
+
+    # ── On-chain (Blockchain.info) ────────────────────────
+    try:
+        s = requests.get("https://api.blockchain.info/stats",timeout=5).json()
+        v["Hash"]      = f"{s['hash_rate']/1e9:.2f} EH/s"
+        v["BTC_Active"]= f"{s['n_blocks_mined']*2100:,}"
+    except:
+        v["Hash"]="—"; v["BTC_Active"]="—"
+
+    # ── M2 & FED (FRED) ───────────────────────────────────
     try:
         m2 = requests.get(
             f"https://api.stlouisfed.org/fred/series/observations?series_id=M2SL"
@@ -201,93 +259,115 @@ def ai_raporu(v, takvim, haberler):
 
     prompt = f"""
 Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisisin.
-Aşağıdaki GERÇEK verileri kullanarak Serhat için derinlikli, rakamsal ve eyleme dönüşebilir 
-bir sabah bülteni yaz. Türkçe yaz. Telegram Markdown formatı kullan (**kalın**, _italik_).
+Aşağıdaki TÜM gerçek verileri kullanarak Serhat için derinlikli, rakamsal ve eyleme dönüşebilir 
+bir sabah bülteni yaz. Türkçe yaz. Telegram Markdown formatı (**kalın**, _italik_).
 
-KURALLAR:
-- Her iddiayı mutlaka rakamla destekle. Örneğin "DXY yükseliyor" değil, "DXY {v['DXY']} ({v['DXY_C']}) seviyesinde yükseliyor" yaz.
-- Seviyeleri kesin belirt: "destek kırılırsa" değil "{v['Sup_Wall']} kırılırsa" yaz.
-- Yüzeysel kalma, her bölüm derinlikli olsun.
-- max_tokens yüksek, bolca yaz.
+TEMEL KURALLAR:
+- Her iddiayı rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')})" yaz.
+- Seviyeleri kesin yaz: "$70,200 kırılırsa" gibi.
+- Her bölüm derinlikli olsun, yüzeysel geçme.
+- Tüm veri kategorilerini mutlaka kullan.
 
-📊 GERÇEK VERİLER ({bugun}):
+━━━━━━━━ DASHBOARD VERİLERİ ({bugun}) ━━━━━━━━
 
-*Kripto:*
-• BTC: {v['BTC_P']} | 24s: {v['BTC_C']} | Hacim: {v['Vol_24h']}
-• ETH: {v['ETH_P']} ({v['ETH_C']}) | SOL: {v['SOL_P']} ({v['SOL_C']})
-• BNB: {v['BNB_P']} ({v['BNB_C']}) | XRP: {v['XRP_P']} ({v['XRP_C']})
-• Korku/Açgözlülük: {v['FNG']}
-• BTC Dominance: {v.get('Dom','—')}
+🔶 KRİPTO FİYATLAR:
+BTC: {v['BTC_P']} | 24s: {v['BTC_C']} | 7g: {v.get('BTC_7D','—')} | Hacim: {v['Vol_24h']}
+ETH: {v['ETH_P']} (24s:{v['ETH_C']} 7g:{v.get('ETH_7D','—')})
+SOL: {v['SOL_P']} (24s:{v['SOL_C']} 7g:{v.get('SOL_7D','—')})
+BNB: {v['BNB_P']} (24s:{v['BNB_C']}) | XRP: {v['XRP_P']} (24s:{v['XRP_C']})
+ADA: {v['ADA_P']} | AVAX: {v['AVAX_P']} | LINK: {v['LINK_P']} | DOT: {v['DOT_P']}
+Korku/Açgözlülük: {v['FNG']} (dün: {v.get('FNG_PREV','—')})
+BTC Dominance: {v['Dom']} | Total MCap: {v['Total_MCap']} | 24s Hacim: {v['Total_Vol']}
 
-*Balina Duvarları:*
-• 🟢 Ana Destek: {v['Sup_Wall']} ({v['Sup_Vol']} BTC bekliyor)
-• 🔴 Ana Direnç: {v['Res_Wall']} ({v['Res_Vol']} BTC bekliyor)
+🔶 BITCOIN ETF:
+IBIT: {v['IBIT_P']} ({v['IBIT_C']}) | Hacim: {v.get('IBIT_Vol','—')} | Akış: {v['IBIT_Flow']}
+FBTC: {v['FBTC_P']} ({v['FBTC_C']}) | BITB: {v['BITB_P']} ({v['BITB_C']}) | ARKB: {v['ARKB_P']} ({v['ARKB_C']})
 
-*Türev Piyasalar:*
-• Long/Short Oranı: {v['LS_Ratio']} → {v['LS_Signal']}
-• Long: {v['Long_Pct']} | Short: {v['Short_Pct']}
-• Open Interest: {v['OI']}
-• Funding Rate: {v['FR']}
-• Stablecoin Likiditesi: {v['Total_Stable']}
+🔶 STABLECOİN LİKİDİTESİ:
+Toplam: {v['Total_Stable']} | USDT: {v['USDT_MCap']} | USDC: {v['USDC_MCap']}
 
-*Global Makro:*
-• SP500: {v['SP500']} ({v['SP500_C']}) | VIX: {v['VIX']} ({v.get('VIX_C','—')})
-• DXY: {v['DXY']} ({v['DXY_C']}) | Altın: {v['GOLD']} ({v['GOLD_C']})
-• USD/TRY: {v['USDTRY']} | ABD 10Y: {v['US10Y']}
-• FED Faizi: {v['FED']} | M2 Büyümesi: {v['M2']}
+🔶 TÜREV PİYASALAR:
+Long/Short: {v['LS_Ratio']} → {v['LS_Signal']}
+Long: {v['Long_Pct']} | Short: {v['Short_Pct']}
+Open Interest: {v['OI']} | Funding Rate: {v['FR']}
 
-📅 BUGÜNKÜ EKONOMİK TAKVİM:
+🔶 BALİNA DUVARLARI (Kraken):
+🟢 Destek: {v['Sup_Wall']} ({v['Sup_Vol']} BTC bekliyor)
+🔴 Direnç: {v['Res_Wall']} ({v['Res_Vol']} BTC bekliyor)
+
+🔶 GLOBAL HİSSE ENDEKSLERİ:
+SP500: {v['SP500']} ({v['SP500_C']}) | NASDAQ: {v['NASDAQ']} ({v['NASDAQ_C']})
+DAX: {v['DAX']} ({v['DAX_C']}) | NIKKEI: {v['NIKKEI']} ({v['NIKKEI_C']})
+BIST100: {v['BIST100']} ({v['BIST100_C']}) | VIX: {v['VIX']} ({v['VIX_C']})
+
+🔶 FOREX & TAHVİL:
+DXY: {v['DXY']} ({v['DXY_C']}) | EUR/USD: {v['EURUSD']} ({v['EURUSD_C']})
+USD/TRY: {v['USDTRY']} ({v['USDTRY_C']}) | USD/JPY: {v['USDJPY']} ({v['USDJPY_C']})
+ABD 10Y: {v['US10Y']} ({v['US10Y_C']})
+
+🔶 EMTİALAR:
+Altın: {v['GOLD']} ({v['GOLD_C']}) | Gümüş: {v['SILVER']} ({v['SILVER_C']})
+Ham Petrol: {v['OIL']} ({v['OIL_C']}) | Doğalgaz: {v['NATGAS']} ({v['NATGAS_C']})
+
+🔶 MAKRO & ON-CHAIN:
+FED Faizi: {v['FED']} | M2 Büyümesi: {v['M2']}
+BTC Hashrate: {v['Hash']} | BTC Korelasyon SP500: {v['Corr_SP500']} | Altın: {v['Corr_Gold']}
+
+📅 EKONOMİK TAKVİM:
 {takvim_str}
 
-📰 SON KRİPTO HABERLERİ:
+📰 KRİPTO HABERLERİ:
 {haber_str}
 
----
-RAPOR YAPISI (bu sırayı koru, her bölüm 3-5 cümle olsun):
+━━━━━━━━ RAPOR YAPISI ━━━━━━━━
 
 **🌅 Sabah Bülteni — {bugun}**
 
-**📈 Makro & Korelasyon Analizi**
-SP500, VIX, DXY rakamlarını ver ve BTC ile korelasyonunu yorumla.
-Altın ve tahvil faizinin mesajını açıkla. M2 ve FED faizinin likidite üzerindeki etkisini belirt.
-USD/TRY seviyesinin TL bazlı yatırımcıya etkisini yorum.
+**1️⃣ Makro Ortam & Korelasyon**
+SP500, VIX, DXY, tahvil faizi rakamlarını ver.
+BTC'nin bu makro ortamla {v['Corr_SP500']} korelasyonunu yorumla.
+Altın {v['GOLD']} ve petrol {v['OIL']} ne söylüyor?
+USD/TRY {v['USDTRY']} TL bazlı yatırımcıyı nasıl etkiliyor?
+M2 {v['M2']} ve FED {v['FED']} likidite mesajı ne?
 
-**₿ BTC Teknik & Türev Analizi**
-Fiyatı, günlük değişimi ve hacmi belirt.
-Balina duvarlarını rakamsal yorumla — kaç BTC bekliyor, fiyata etkisi ne olur?
-Funding rate pozitif mi negatif mi, ne anlama geliyor?
-Long/Short oranını yorumla — aşırı long kalabalık mı, short sıkışması var mı?
-OI artıyor mu azalıyor mu?
+**2️⃣ BTC Teknik & Türev Analizi**
+Fiyat {v['BTC_P']}, 24s değişim, hacim {v['Vol_24h']}, 7 günlük trend.
+Balina duvarı analizi — {v['Sup_Wall']}'deki {v['Sup_Vol']} BTC ne anlama gelir?
+{v['Res_Wall']}'deki {v['Res_Vol']} BTC direnç ne kadar güçlü?
+Funding {v['FR']} pozitif mi negatif mi, short squeeze/long liquidation riski var mı?
+OI {v['OI']} — pozisyon birikimi tehlikeli mi?
+L/S {v['LS_Ratio']} ({v['LS_Signal']}) — kalabalık taraf neresi, squeeze ihtimali?
 
-**🪙 Altcoin Sinyalleri**
-ETH, SOL, BNB günlük performanslarını rakamsal karşılaştır.
-BTC dominance ile altcoin sezonu ilişkisini yorumla.
+**3️⃣ ETF & Likidite Akışları**
+IBIT akış {v['IBIT_Flow']} — kurumsal para giriyor mu çıkıyor mu?
+Stablecoin toplam {v['Total_Stable']} — piyasaya hazır para var mı?
+USDT {v['USDT_MCap']} + USDC {v['USDC_MCap']} — likidite trendini yorumla.
 
-**📅 Bugünün Ekonomik Takvimi**
-Takvim verisini analiz et:
-- Veri VARSA: hangi veri, saat kaçta, önceki değer ne, beklenti ne, piyasaya etkisi ne olur?
-- Veri YOKSA: "Bugün yüksek etkili makro veri yok" diyip geçme! Bunun yerine şunları yaz:
-  * Takvim boşken hangi faktörler fiyatı yönlendirir (ETF akışı, balina hareketi, teknik seviyeler)?
-  * Bu hafta içinde yaklaşan önemli bir veri var mı (FOMC, CPI, NFP gibi)?
-  * Takvimin boş olması BTC için fırsat mı yoksa tehlike mi — gerekçeyle açıkla.
+**4️⃣ Altcoin Sinyalleri**
+ETH {v['ETH_P']} ({v['ETH_C']}), SOL {v['SOL_P']} ({v['SOL_C']}), BNB {v['BNB_P']} rakamsal karşılaştır.
+BTC dominance {v['Dom']} — altcoin sezonu yaklaşıyor mu uzaklaşıyor mu?
+7 günlük performans farkını yorumla.
 
-**📰 Piyasayı Etkileyen Haberler**
-En kritik 2 haberi seç ve BTC/kripto üzerindeki olası etkisini açıkla.
+**5️⃣ Ekonomik Takvim**
+Takvim varsa: hangi veri, saat, beklenti, piyasaya etkisi.
+Takvim boşsa: bu hafta yaklaşan kritik veriler var mı? 
+Takvim boş günlerde hangi faktörler yön belirler (ETF akış, balina, teknik)?
 
-**🎯 Günlük Aksiyon Planı**
-3 senaryo yaz — hepsi rakamsal olsun:
-• 📗 LONG: hangi seviyenin üzerinde, hedef fiyat, stop-loss
-• 📕 SHORT: hangi seviyenin altında, hedef fiyat, stop-loss
-• 📒 BEKLE: hangi koşulda beklemek daha mantıklı
+**6️⃣ Öne Çıkan Haberler**
+En kritik 2 haberi seç, BTC/kripto üzerindeki olası etkisini açıkla.
 
-**⚠️ Bugünün En Kritik Riski**
-Tek cümle, net ve rakamsal.
+**7️⃣ Günlük Aksiyon Planı**
+📗 LONG: seviye, hedef, stop-loss (hepsi rakamsal)
+📕 SHORT: seviye, hedef, stop-loss (hepsi rakamsal)
+📒 BEKLE: hangi koşulda beklemek mantıklı
+
+**⚠️ Bugünün En Kritik Riski** — tek cümle, rakamsal.
 """
 
     resp = client.chat.completions.create(
         model="google/gemini-2.0-flash-001",
         messages=[{"role":"user","content":prompt}],
-        max_tokens=2500
+        max_tokens=3000
     )
     return resp.choices[0].message.content
 
