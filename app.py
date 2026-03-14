@@ -171,42 +171,58 @@ def veri_motoru():
     except:
         v["Total_Stable"]="—"; v["USDT_MCap"]="—"; v["USDC_MCap"]="—"; v["DAI_MCap"]="—"
 
-    # ── 10. OI + FUNDING — Bybit (bulut uyumlu) ───────────
+    # ── 10. OI + FUNDING — Kraken Futures (bulut uyumlu) ──
     try:
-        bybit=requests.get(
-            "https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT",
-            headers=HEADERS,timeout=6).json()
-        t=bybit["result"]["list"][0]
-        v["OI"]     = f"{float(t['openInterest']):,.0f} BTC"
-        v["FR"]     = f"%{float(t['fundingRate'])*100:.4f}"
-        v["Taker"]  = "—"  # Bybit'te ayrı endpoint
+        kr_ticker = requests.get(
+            "https://futures.kraken.com/derivatives/api/v3/tickers",
+            headers=HEADERS, timeout=6).json()
+        btc_perp = next((t for t in kr_ticker["tickers"] if t["symbol"]=="PF_XBTUSD"), None)
+        if btc_perp:
+            v["OI"] = f"{btc_perp.get('openInterest', '—'):,.0f} BTC"
+            fr_val  = btc_perp.get("fundingRate", None)
+            v["FR"] = f"%{float(fr_val)*100:.4f}" if fr_val else "—"
+        else:
+            v["OI"]="—"; v["FR"]="—"
     except:
-        v["OI"]="—"; v["FR"]="—"; v["Taker"]="—"
+        v["OI"]="—"; v["FR"]="—"
 
-    # Taker B/S — Bybit
+    # Taker B/S — Kraken spot orderbook yaklaşımı (bid/ask spread)
     try:
-        taker=requests.get(
-            "https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=1h&limit=1",
-            headers=HEADERS,timeout=6).json()
-        d=taker["result"]["list"][0]
-        buy=float(d["buyRatio"]); sell=float(d["sellRatio"])
-        v["Taker"]=f"{buy/sell:.3f}" if sell>0 else "—"
+        kr_ob = requests.get(
+            "https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=10",
+            headers=HEADERS, timeout=6).json()
+        pk  = list(kr_ob["result"].keys())[0]
+        top_bid_vol = sum(float(q) for _,q,_ in kr_ob["result"][pk]["bids"])
+        top_ask_vol = sum(float(q) for _,q,_ in kr_ob["result"][pk]["asks"])
+        ratio_t = top_bid_vol / top_ask_vol if top_ask_vol > 0 else 1
+        v["Taker"] = f"{ratio_t:.3f}"
     except:
-        if v.get("Taker")=="—": v["Taker"]="1.000"
+        v["Taker"] = "1.000"
 
-    # ── 11. LONG/SHORT — Bybit ────────────────────────────
+    # ── 11. LONG/SHORT — OKX (ücretsiz, bulut uyumlu) ────
     try:
-        ls=requests.get(
-            "https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=1h&limit=1",
-            headers=HEADERS,timeout=6).json()
-        d=ls["result"]["list"][0]
-        buy=float(d["buyRatio"]); sell=float(d["sellRatio"])
-        ratio=buy/sell if sell>0 else 1
-        v["LS_Ratio"]=f"{ratio:.3f}"
-        v["Long_Pct"]=f"%{buy*100:.1f}"
-        v["Short_Pct"]=f"%{sell*100:.1f}"
-        v["LS_Signal"]="🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
+        okx = requests.get(
+            "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio"
+            "?ccy=BTC&period=1H",
+            headers=HEADERS, timeout=6).json()
+        d   = okx["data"][0]
+        ls_ratio = float(d["longShortRatio"])
+        long_pct  = ls_ratio / (1 + ls_ratio) * 100
+        short_pct = 100 - long_pct
+        v["LS_Ratio"] = f"{ls_ratio:.3f}"
+        v["Long_Pct"] = f"%{long_pct:.1f}"
+        v["Short_Pct"]= f"%{short_pct:.1f}"
+        v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
     except:
+        # Fallback: OKX ticker'dan hesapla
+        try:
+            okx2 = requests.get(
+                "https://www.okx.com/api/v5/market/open-interest?instType=SWAP&instId=BTC-USDT-SWAP",
+                headers=HEADERS, timeout=6).json()
+            oi_val = float(okx2["data"][0]["oi"])
+            v["OI"] = v["OI"] if v["OI"] != "—" else f"{oi_val:,.0f} BTC"
+        except:
+            pass
         v["LS_Ratio"]="—"; v["Long_Pct"]="—"; v["Short_Pct"]="—"; v["LS_Signal"]="—"
 
     # ── 12. FRED ──────────────────────────────────────────
