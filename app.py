@@ -199,30 +199,69 @@ def veri_motoru():
     except:
         v["Taker"] = "1.000"
 
-    # ── 11. LONG/SHORT — OKX (ücretsiz, bulut uyumlu) ────
-    try:
-        okx = requests.get(
-            "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio"
-            "?ccy=BTC&period=1H",
-            headers=HEADERS, timeout=6).json()
-        d   = okx["data"][0]
-        ls_ratio = float(d["longShortRatio"])
-        long_pct  = ls_ratio / (1 + ls_ratio) * 100
-        short_pct = 100 - long_pct
-        v["LS_Ratio"] = f"{ls_ratio:.3f}"
-        v["Long_Pct"] = f"%{long_pct:.1f}"
-        v["Short_Pct"]= f"%{short_pct:.1f}"
-        v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
-    except:
-        # Fallback: OKX ticker'dan hesapla
+    # ── 11. LONG/SHORT — 3 farklı kaynak dene ────────────
+    ls_done = False
+
+    # Kaynak 1: OKX
+    if not ls_done:
         try:
-            okx2 = requests.get(
-                "https://www.okx.com/api/v5/market/open-interest?instType=SWAP&instId=BTC-USDT-SWAP",
+            okx = requests.get(
+                "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio"
+                "?ccy=BTC&period=1H",
                 headers=HEADERS, timeout=6).json()
-            oi_val = float(okx2["data"][0]["oi"])
-            v["OI"] = v["OI"] if v["OI"] != "—" else f"{oi_val:,.0f} BTC"
+            d = okx["data"][0]
+            ls_ratio = float(d["longShortRatio"])
+            long_pct  = ls_ratio / (1 + ls_ratio) * 100
+            short_pct = 100 - long_pct
+            v["LS_Ratio"] = f"{ls_ratio:.3f}"
+            v["Long_Pct"] = f"%{long_pct:.1f}"
+            v["Short_Pct"]= f"%{short_pct:.1f}"
+            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
+            ls_done = True
         except:
             pass
+
+    # Kaynak 2: Bitfinex (long/short pozisyon sayısı)
+    if not ls_done:
+        try:
+            bf = requests.get(
+                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:long/hist?limit=1",
+                headers=HEADERS, timeout=6).json()
+            bf_s = requests.get(
+                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:short/hist?limit=1",
+                headers=HEADERS, timeout=6).json()
+            long_v  = abs(float(bf[0][1]))
+            short_v = abs(float(bf_s[0][1]))
+            total_v = long_v + short_v
+            ls_ratio = long_v / short_v if short_v > 0 else 1
+            v["LS_Ratio"] = f"{ls_ratio:.3f}"
+            v["Long_Pct"] = f"%{long_v/total_v*100:.1f}"
+            v["Short_Pct"]= f"%{short_v/total_v*100:.1f}"
+            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
+            ls_done = True
+        except:
+            pass
+
+    # Kaynak 3: Kraken futures book'tan tahmin
+    if not ls_done:
+        try:
+            kr = requests.get(
+                "https://futures.kraken.com/derivatives/api/v3/orderbook?symbol=PF_XBTUSD",
+                headers=HEADERS, timeout=6).json()
+            bid_vol = sum(float(x["qty"]) for x in kr["orderBook"]["bids"][:20])
+            ask_vol = sum(float(x["qty"]) for x in kr["orderBook"]["asks"][:20])
+            ls_ratio = bid_vol / ask_vol if ask_vol > 0 else 1
+            long_pct  = bid_vol / (bid_vol + ask_vol) * 100
+            short_pct = 100 - long_pct
+            v["LS_Ratio"] = f"{ls_ratio:.3f} (tahmin)"
+            v["Long_Pct"] = f"%{long_pct:.1f}"
+            v["Short_Pct"]= f"%{short_pct:.1f}"
+            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
+            ls_done = True
+        except:
+            pass
+
+    if not ls_done:
         v["LS_Ratio"]="—"; v["Long_Pct"]="—"; v["Short_Pct"]="—"; v["LS_Signal"]="—"
 
     # ── 12. FRED ──────────────────────────────────────────
