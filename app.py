@@ -1,4 +1,4 @@
-import os
+import os, re
 import streamlit as st
 import requests
 import yfinance as yf
@@ -7,56 +7,36 @@ import pandas as pd
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
-# --- ORTAM DEĞİŞKENLERİ ---
 load_dotenv()
 FRED_API_KEY       = os.getenv("FRED_API_KEY", "")
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 if not OPENROUTER_API_KEY:
-    st.error("❌ .env dosyasında OPENROUTER_API_KEY eksik!")
+    st.error("❌ OPENROUTER_API_KEY eksik!")
     st.stop()
 
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
 
-st.set_page_config(
-    page_title="Serhat Alpha Terminal v16.1",
-    page_icon="🛡️",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="Serhat Alpha Terminal v16.2", page_icon="🛡️",
+                   layout="wide", initial_sidebar_state="expanded")
 
 st.markdown("""
 <style>
 body { background-color: #020617; }
-.news-item { background:#0f172a; padding:12px 15px; border-radius:10px; border-left:3px solid #00ff88; margin-bottom:8px; font-size:0.88em; line-height:1.5; }
+.news-item { background:#0f172a; padding:12px 15px; border-radius:10px;
+             border-left:3px solid #00ff88; margin-bottom:8px; font-size:0.88em; line-height:1.5; }
 .news-item a { color:#38bdf8; text-decoration:none; }
 .news-item .meta { color:#64748b; font-size:0.8em; margin-top:4px; }
-.report-box { background:#020617; padding:25px; border-radius:15px; border:1px solid #1e293b; line-height:1.7; font-size:0.95em; }
-.stButton button { background-color:#00ff88 !important; color:#000 !important; font-weight:bold; border-radius:8px; height:3.5em; width:100%; }
-.section-title { font-size:1.05em; font-weight:700; color:#94a3b8; text-transform:uppercase; letter-spacing:1px; margin:18px 0 8px 0; }
+.report-box { background:#020617; padding:25px; border-radius:15px;
+              border:1px solid #1e293b; line-height:1.7; font-size:0.95em; }
+.stButton button { background-color:#00ff88 !important; color:#000 !important;
+                   font-weight:bold; border-radius:8px; height:3.5em; width:100%; }
+.section-title { font-size:1.05em; font-weight:700; color:#94a3b8;
+                 text-transform:uppercase; letter-spacing:1px; margin:18px 0 8px 0; }
 </style>
 """, unsafe_allow_html=True)
 
-
-# =========================================================
-# YARDIMCI FONKSİYONLAR
-# =========================================================
-def yf_fiyat(sembol, format_str="{:.2f}", prefix="$"):
-    """
-    yFinance'tan fiyat çeker.
-    Hafta sonu veya piyasa kapalıysa son kapanışı döner.
-    """
-    try:
-        df = yf.Ticker(sembol).history(period="5d")
-        if df.empty:
-            return "—", "—"
-        curr = df["Close"].iloc[-1]
-        prev = df["Close"].iloc[-2]
-        degisim = f"{(curr-prev)/prev*100:.2f}%"
-        fiyat   = f"{prefix}{format_str.format(curr)}"
-        return fiyat, degisim
-    except:
-        return "—", "—"
+HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 
 
 # =========================================================
@@ -66,263 +46,239 @@ def yf_fiyat(sembol, format_str="{:.2f}", prefix="$"):
 def veri_motoru():
     v = {}
 
-    # ── 1. BTC ────────────────────────────────────────────
+    # ── 1. BTC — Coinpaprika (ücretsiz, bulut uyumlu) ────
     try:
-        r = requests.get(
-            "https://api.coingecko.com/api/v3/simple/price"
-            "?ids=bitcoin&vs_currencies=usd&include_24hr_change=true&include_24hr_vol=true",
-            timeout=8).json()["bitcoin"]
-        v["BTC_P"]   = f"${r['usd']:,.0f}"
-        v["BTC_C"]   = f"{r['usd_24h_change']:.2f}%"
-        v["Vol_24h"] = f"${r['usd_24h_vol']:,.0f}"
+        r = requests.get("https://api.coinpaprika.com/v1/tickers/btc-bitcoin",
+                         headers=HEADERS, timeout=8).json()
+        q = r["quotes"]["USD"]
+        v["BTC_P"]   = f"${q['price']:,.0f}"
+        v["BTC_C"]   = f"{q['percent_change_24h']:.2f}%"
+        v["Vol_24h"] = f"${q['volume_24h']:,.0f}"
     except:
-        v["BTC_P"] = "—"; v["BTC_C"] = "—"; v["Vol_24h"] = "—"
+        v["BTC_P"]="—"; v["BTC_C"]="—"; v["Vol_24h"]="—"
 
-    # ── 2. ALTCOİNLER ─────────────────────────────────────
-    try:
-        coins = requests.get(
-            "https://api.coingecko.com/api/v3/simple/price"
-            "?ids=ethereum,solana,binancecoin,ripple,cardano,avalanche-2,polkadot,chainlink"
-            "&vs_currencies=usd&include_24hr_change=true",
-            timeout=8).json()
-        alts = {
-            "ETH":"ethereum","SOL":"solana","BNB":"binancecoin",
-            "XRP":"ripple","ADA":"cardano","AVAX":"avalanche-2",
-            "DOT":"polkadot","LINK":"chainlink"
-        }
-        for sym, cid in alts.items():
-            v[f"{sym}_P"] = f"${coins[cid]['usd']:,.2f}"
-            v[f"{sym}_C"] = f"{coins[cid]['usd_24h_change']:.2f}%"
-    except:
-        for sym in ["ETH","SOL","BNB","XRP","ADA","AVAX","DOT","LINK"]:
-            v[f"{sym}_P"] = "—"; v[f"{sym}_C"] = "—"
+    # ── 2. ALTCOİNLER — Coinpaprika ───────────────────────
+    alt_ids = {
+        "ETH":"eth-ethereum","SOL":"sol-solana","BNB":"bnb-binance-coin",
+        "XRP":"xrp-xrp","ADA":"ada-cardano","AVAX":"avax-avalanche",
+        "DOT":"dot-polkadot","LINK":"link-chainlink"
+    }
+    for sym, cid in alt_ids.items():
+        try:
+            r = requests.get(f"https://api.coinpaprika.com/v1/tickers/{cid}",
+                             headers=HEADERS, timeout=6).json()
+            q = r["quotes"]["USD"]
+            v[f"{sym}_P"] = f"${q['price']:,.2f}"
+            v[f"{sym}_C"] = f"{q['percent_change_24h']:.2f}%"
+        except:
+            v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"
 
-    # ── 3. IBIT + ETF (hafta sonu son kapanış gösterir) ───
-    for sym, label in [("IBIT","IBIT"),("FBTC","FBTC"),("BITB","BITB"),("ARKB","ARKB")]:
+    # ── 3. ETF (yFinance — hafta sonu son kapanış) ────────
+    for sym in ["IBIT","FBTC","BITB","ARKB"]:
         try:
             df = yf.Ticker(sym).history(period="10d")
             if df.empty:
-                v[f"{sym}_P"] = "—"; v[f"{sym}_C"] = "—"; v[f"{sym}_Vol"] = "—"
-                continue
-            curr = df["Close"].iloc[-1]
-            prev = df["Close"].iloc[-2]
-            degisim = (curr - prev) / prev * 100
+                v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"; v[f"{sym}_Vol"]="—"; continue
+            curr=df["Close"].iloc[-1]; prev=df["Close"].iloc[-2]
             v[f"{sym}_P"]   = f"${curr:.2f} (son kapanış)"
-            v[f"{sym}_C"]   = f"{degisim:.2f}%"
+            v[f"{sym}_C"]   = f"{(curr-prev)/prev*100:.2f}%"
             v[f"{sym}_Vol"] = f"{int(df['Volume'].iloc[-1]):,}"
-            if sym == "IBIT":
-                flow = int(df['Volume'].iloc[-1]) * (curr - prev)
+            if sym=="IBIT":
+                flow = int(df["Volume"].iloc[-1])*(curr-prev)
                 v["IBIT_Flow"] = f"{'📈 +' if flow>0 else '📉 '}{abs(flow/1e6):.1f}M $"
         except:
-            v[f"{sym}_P"] = "—"; v[f"{sym}_C"] = "—"; v[f"{sym}_Vol"] = "—"
-    if "IBIT_Flow" not in v:
-        v["IBIT_Flow"] = "—"
+            v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"; v[f"{sym}_Vol"]="—"
+    if "IBIT_Flow" not in v: v["IBIT_Flow"]="—"
 
     # ── 4. HİSSE ENDEKSLERİ ───────────────────────────────
     endeksler = {
-        "SP500":"^GSPC","NASDAQ":"^IXIC","DOW":"^DJI",
-        "DAX":"^GDAXI","FTSE":"^FTSE","NIKKEI":"^N225",
-        "HSI":"^HSI","BIST100":"XU100.IS","VIX":"^VIX"
+        "SP500":"^GSPC","NASDAQ":"^IXIC","DOW":"^DJI","DAX":"^GDAXI",
+        "FTSE":"^FTSE","NIKKEI":"^N225","HSI":"^HSI","BIST100":"XU100.IS","VIX":"^VIX"
     }
     for key, sym in endeksler.items():
-        p, c = yf_fiyat(sym, "{:,.2f}", "")
-        v[key] = p; v[f"{key}_C"] = c
+        try:
+            df=yf.Ticker(sym).history(period="5d")
+            curr=df["Close"].iloc[-1]; prev=df["Close"].iloc[-2]
+            v[key]=f"{curr:,.2f}"; v[f"{key}_C"]=f"{(curr-prev)/prev*100:.2f}%"
+        except:
+            v[key]="—"; v[f"{key}_C"]="—"
 
     # ── 5. EMTİALAR ───────────────────────────────────────
-    emtialar = {
-        "GOLD":"GC=F","SILVER":"SI=F","OIL":"CL=F",
-        "NATGAS":"NG=F","COPPER":"HG=F","WHEAT":"ZW=F"
-    }
+    emtialar={"GOLD":"GC=F","SILVER":"SI=F","OIL":"CL=F","NATGAS":"NG=F","COPPER":"HG=F","WHEAT":"ZW=F"}
     for key, sym in emtialar.items():
-        p, c = yf_fiyat(sym, "{:,.3f}", "$")
-        v[key] = p; v[f"{key}_C"] = c
+        try:
+            df=yf.Ticker(sym).history(period="5d")
+            curr=df["Close"].iloc[-1]; prev=df["Close"].iloc[-2]
+            v[key]=f"${curr:,.3f}"; v[f"{key}_C"]=f"{(curr-prev)/prev*100:.2f}%"
+        except:
+            v[key]="—"; v[f"{key}_C"]="—"
 
     # ── 6. FOREX ──────────────────────────────────────────
-    forex = {
-        "DXY":"DX-Y.NYB","EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X",
-        "USDJPY":"JPY=X","USDTRY":"TRY=X","USDCHF":"CHF=X",
-        "AUDUSD":"AUDUSD=X","US10Y":"^TNX"
-    }
+    forex={"DXY":"DX-Y.NYB","EURUSD":"EURUSD=X","GBPUSD":"GBPUSD=X","USDJPY":"JPY=X",
+           "USDTRY":"TRY=X","USDCHF":"CHF=X","AUDUSD":"AUDUSD=X","US10Y":"^TNX"}
     for key, sym in forex.items():
-        p, c = yf_fiyat(sym, "{:.4f}", "")
-        v[key] = p; v[f"{key}_C"] = c
+        try:
+            df=yf.Ticker(sym).history(period="5d")
+            curr=df["Close"].iloc[-1]; prev=df["Close"].iloc[-2]
+            v[key]=f"{curr:.4f}"; v[f"{key}_C"]=f"{(curr-prev)/prev*100:.2f}%"
+        except:
+            v[key]="—"; v[f"{key}_C"]="—"
 
     # ── 7. KORELASYONLAR ──────────────────────────────────
     try:
-        cd = yf.download(["BTC-USD","^GSPC","GC=F"],period="30d",progress=False)["Close"]
-        cm = cd.corr()
-        v["Corr_SP500"] = round(cm.loc["BTC-USD","^GSPC"],2)
-        v["Corr_Gold"]  = round(cm.loc["BTC-USD","GC=F"],2)
+        cd=yf.download(["BTC-USD","^GSPC","GC=F"],period="30d",progress=False)["Close"]
+        cm=cd.corr()
+        v["Corr_SP500"]=round(cm.loc["BTC-USD","^GSPC"],2)
+        v["Corr_Gold"] =round(cm.loc["BTC-USD","GC=F"],2)
     except:
-        v["Corr_SP500"] = "—"; v["Corr_Gold"] = "—"
+        v["Corr_SP500"]="—"; v["Corr_Gold"]="—"
 
     # ── 8. BALİNA DUVARI (Kraken) ─────────────────────────
     try:
-        ob  = requests.get("https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=500",timeout=8).json()
-        pk  = list(ob["result"].keys())[0]
-        bids= [(float(p),float(q)) for p,q,_ in ob["result"][pk]["bids"]]
-        asks= [(float(p),float(q)) for p,q,_ in ob["result"][pk]["asks"]]
-        cur = bids[0][0]; noise=250; bs=100
-        fb  = [(p,q) for p,q in bids if p < cur-noise] or bids[len(bids)//2:]
-        fa  = [(p,q) for p,q in asks if p > cur+noise] or asks[len(asks)//2:]
-        def bkt(data, fn):
-            d = {}
-            for p, q in data:
-                k = fn(p); d[k] = d.get(k,0) + q
-            return max(d.items(), key=lambda x: x[1])
-        sw,sv = bkt(fb, lambda p: int(p/bs)*bs)
-        rw,rv = bkt(fa, lambda p: int((p/bs)+1)*bs)
+        ob=requests.get("https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=500",timeout=8).json()
+        pk=list(ob["result"].keys())[0]
+        bids=[(float(p),float(q)) for p,q,_ in ob["result"][pk]["bids"]]
+        asks=[(float(p),float(q)) for p,q,_ in ob["result"][pk]["asks"]]
+        cur=bids[0][0]; noise=250; bs=100
+        fb=[(p,q) for p,q in bids if p<cur-noise] or bids[len(bids)//2:]
+        fa=[(p,q) for p,q in asks if p>cur+noise] or asks[len(asks)//2:]
+        def bkt(data,fn):
+            d={}
+            for p,q in data: k=fn(p); d[k]=d.get(k,0)+q
+            return max(d.items(),key=lambda x:x[1])
+        sw,sv=bkt(fb,lambda p:int(p/bs)*bs)
+        rw,rv=bkt(fa,lambda p:int((p/bs)+1)*bs)
         v["Sup_Wall"]=f"${sw:,}"; v["Sup_Vol"]=f"{int(sv):,} BTC"
         v["Res_Wall"]=f"${rw:,}"; v["Res_Vol"]=f"{int(rv):,} BTC"
         ds=cur-sw; dr=rw-cur
-        v["Wall_Status"] = "🔴 Makro Dirence Yakın" if dr<ds else ("🟢 Makro Desteğe Yakın" if ds<dr else "⚖️ Kanal Ortasında")
+        v["Wall_Status"]="🔴 Makro Dirence Yakın" if dr<ds else ("🟢 Makro Desteğe Yakın" if ds<dr else "⚖️ Kanal Ortasında")
     except:
-        v["Sup_Wall"]="—"; v["Sup_Vol"]="—"
-        v["Res_Wall"]="—"; v["Res_Vol"]="—"; v["Wall_Status"]="Veri Yok"
+        v["Sup_Wall"]="—"; v["Sup_Vol"]="—"; v["Res_Wall"]="—"; v["Res_Vol"]="—"; v["Wall_Status"]="Veri Yok"
 
-    # ── 9. STABLECOİN (DeFiLlama — ücretsiz, limitsiz) ───
+    # ── 9. STABLECOİN — DeFiLlama ─────────────────────────
     try:
-        # USDT
-        usdt = requests.get("https://stablecoins.llama.fi/stablecoin/1",timeout=6).json()
-        usdt_cap = usdt["peggedUSD"]
-        v["USDT_MCap"] = f"${usdt_cap/1e9:.1f}B"
+        sc=requests.get("https://stablecoins.llama.fi/stablecoins?includePrices=true",
+                        headers=HEADERS,timeout=8).json()["peggedAssets"]
+        total=sum(c.get("circulating",{}).get("peggedUSD",0) for c in sc)
+        def get_cap(symbol):
+            c=next((x for x in sc if x["symbol"].upper()==symbol.upper()),None)
+            if c: return f"${c['circulating']['peggedUSD']/1e9:.1f}B"
+            return "—"
+        v["Total_Stable"]=f"${total/1e9:.1f}B"
+        v["USDT_MCap"]=get_cap("USDT")
+        v["USDC_MCap"]=get_cap("USDC")
+        v["DAI_MCap"] =get_cap("DAI")
     except:
-        v["USDT_MCap"] = "—"
+        v["Total_Stable"]="—"; v["USDT_MCap"]="—"; v["USDC_MCap"]="—"; v["DAI_MCap"]="—"
 
+    # ── 10. OI + FUNDING — Bybit (bulut uyumlu) ───────────
     try:
-        # Tüm stablecoinler
-        all_sc = requests.get("https://stablecoins.llama.fi/stablecoins?includePrices=true",timeout=6).json()
-        coins_sc = all_sc["peggedAssets"]
-        total = sum(c.get("circulating",{}).get("peggedUSD",0) for c in coins_sc)
-        usdc  = next((c for c in coins_sc if c["symbol"]=="USDC"), None)
-        dai   = next((c for c in coins_sc if c["symbol"]=="DAI"),  None)
-        v["Total_Stable"] = f"${total/1e9:.1f}B"
-        v["USDC_MCap"] = f"${usdc['circulating']['peggedUSD']/1e9:.1f}B" if usdc else "—"
-        v["DAI_MCap"]  = f"${dai['circulating']['peggedUSD']/1e9:.1f}B"  if dai  else "—"
+        bybit=requests.get(
+            "https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT",
+            headers=HEADERS,timeout=6).json()
+        t=bybit["result"]["list"][0]
+        v["OI"]     = f"{float(t['openInterest']):,.0f} BTC"
+        v["FR"]     = f"%{float(t['fundingRate'])*100:.4f}"
+        v["Taker"]  = "—"  # Bybit'te ayrı endpoint
     except:
-        v["Total_Stable"]="—"; v["USDC_MCap"]="—"; v["DAI_MCap"]="—"
+        v["OI"]="—"; v["FR"]="—"; v["Taker"]="—"
 
-    # ── 10. LONG/SHORT + OI + FUNDING (Coinglass) ─────────
+    # Taker B/S — Bybit
     try:
-        headers = {"accept": "application/json"}
-        # Long/Short oranı
-        ls = requests.get(
-            "https://open-api.coinglass.com/public/v2/long_short_account?ex=Binance&pair=BTCUSDT&interval=h1&limit=1",
-            headers=headers, timeout=6).json()
-        if ls.get("data"):
-            d = ls["data"][0]
-            ratio = float(d["longAccount"]) / float(d["shortAccount"]) if float(d["shortAccount"]) > 0 else 1
-            v["LS_Ratio"] = f"{ratio:.3f}"
-            v["Long_Pct"] = f"%{float(d['longAccount'])*100:.1f}"
-            v["Short_Pct"]= f"%{float(d['shortAccount'])*100:.1f}"
-            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
-        else:
-            raise Exception("no data")
+        taker=requests.get(
+            "https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=1h&limit=1",
+            headers=HEADERS,timeout=6).json()
+        d=taker["result"]["list"][0]
+        buy=float(d["buyRatio"]); sell=float(d["sellRatio"])
+        v["Taker"]=f"{buy/sell:.3f}" if sell>0 else "—"
     except:
-        # Fallback: Binance doğrudan dene
-        try:
-            ls2 = requests.get(
-                "https://fapi.binance.com/futures/data/globalLongShortAccountRatio"
-                "?symbol=BTCUSDT&period=1h&limit=1", timeout=5).json()
-            ratio = float(ls2[0]["longShortRatio"])
-            v["LS_Ratio"] = f"{ratio:.3f}"
-            v["Long_Pct"] = f"%{float(ls2[0]['longAccount'])*100:.1f}"
-            v["Short_Pct"]= f"%{float(ls2[0]['shortAccount'])*100:.1f}"
-            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
-        except:
-            v["LS_Ratio"]="—"; v["Long_Pct"]="—"; v["Short_Pct"]="—"; v["LS_Signal"]="—"
+        if v.get("Taker")=="—": v["Taker"]="1.000"
 
-    # Open Interest (Coinglass fallback Binance)
+    # ── 11. LONG/SHORT — Bybit ────────────────────────────
     try:
-        oi = requests.get("https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT",timeout=5).json()
-        v["OI"] = f"{int(float(oi['openInterest'])):,} BTC"
+        ls=requests.get(
+            "https://api.bybit.com/v5/market/account-ratio?category=linear&symbol=BTCUSDT&period=1h&limit=1",
+            headers=HEADERS,timeout=6).json()
+        d=ls["result"]["list"][0]
+        buy=float(d["buyRatio"]); sell=float(d["sellRatio"])
+        ratio=buy/sell if sell>0 else 1
+        v["LS_Ratio"]=f"{ratio:.3f}"
+        v["Long_Pct"]=f"%{buy*100:.1f}"
+        v["Short_Pct"]=f"%{sell*100:.1f}"
+        v["LS_Signal"]="🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
     except:
-        v["OI"] = "—"
+        v["LS_Ratio"]="—"; v["Long_Pct"]="—"; v["Short_Pct"]="—"; v["LS_Signal"]="—"
 
-    # Funding Rate
+    # ── 12. FRED ──────────────────────────────────────────
     try:
-        fr = requests.get("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT",timeout=5).json()
-        v["FR"] = f"%{float(fr['lastFundingRate'])*100:.4f}"
-    except:
-        v["FR"] = "—"
-
-    # Taker B/S
-    try:
-        tr = requests.get(
-            "https://fapi.binance.com/futures/data/takerbuySellVol?symbol=BTCUSDT&period=1h&limit=1",
-            timeout=5).json()
-        v["Taker"] = f"{float(tr[0]['buySellRatio']):.3f}"
-    except:
-        v["Taker"] = "1.000"
-
-    # ── 11. FRED ──────────────────────────────────────────
-    try:
-        m2 = requests.get(
-            f"https://api.stlouisfed.org/fred/series/observations"
-            f"?series_id=M2SL&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=13",
+        m2=requests.get(
+            f"https://api.stlouisfed.org/fred/series/observations?series_id=M2SL"
+            f"&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=13",
             timeout=6).json()["observations"]
-        v["M2"] = f"{(float(m2[0]['value'])-float(m2[12]['value']))/float(m2[12]['value'])*100:.2f}"
-    except:
-        v["M2"] = "—"
+        v["M2"]=f"{(float(m2[0]['value'])-float(m2[12]['value']))/float(m2[12]['value'])*100:.2f}"
+    except: v["M2"]="—"
     try:
-        fed = requests.get(
-            f"https://api.stlouisfed.org/fred/series/observations"
-            f"?series_id=FEDFUNDS&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1",
+        fed=requests.get(
+            f"https://api.stlouisfed.org/fred/series/observations?series_id=FEDFUNDS"
+            f"&api_key={FRED_API_KEY}&file_type=json&sort_order=desc&limit=1",
             timeout=6).json()["observations"]
-        v["FED"] = f"%{fed[0]['value']}"
-    except:
-        v["FED"] = "—"
+        v["FED"]=f"%{fed[0]['value']}"
+    except: v["FED"]="—"
 
-    # ── 12. ON-CHAIN ──────────────────────────────────────
+    # ── 13. ON-CHAIN ──────────────────────────────────────
     try:
-        s = requests.get("https://api.blockchain.info/stats",timeout=5).json()
-        v["Active"] = f"{s['n_blocks_mined']*2100:,}"
-        v["Hash"]   = f"{s['hash_rate']/1e9:.2f} EH/s"
-    except:
-        v["Active"] = "—"; v["Hash"] = "—"
+        s=requests.get("https://api.blockchain.info/stats",timeout=5).json()
+        v["Active"]=f"{s['n_blocks_mined']*2100:,}"; v["Hash"]=f"{s['hash_rate']/1e9:.2f} EH/s"
+    except: v["Active"]="—"; v["Hash"]="—"
 
-    # ── 13. KORKU & MARKET CAP ────────────────────────────
+    # ── 14. KORKU & MARKET CAP ────────────────────────────
     try:
-        fng = requests.get("https://api.alternative.me/fng/",timeout=5).json()["data"][0]
-        v["FNG"] = f"{fng['value']} ({fng['value_classification']})"
-    except:
-        v["FNG"] = "—"
-    try:
-        cg = requests.get("https://api.coingecko.com/api/v3/global",timeout=5).json()["data"]
-        v["Dom"]        = f"%{cg['market_cap_percentage']['btc']:.2f}"
-        v["ETH_Dom"]    = f"%{cg['market_cap_percentage']['eth']:.2f}"
-        v["Total_MCap"] = f"${cg['total_market_cap']['usd']/1e12:.2f}T"
-    except:
-        v["Dom"]="—"; v["ETH_Dom"]="—"; v["Total_MCap"]="—"
+        fng=requests.get("https://api.alternative.me/fng/",timeout=5).json()["data"][0]
+        v["FNG"]=f"{fng['value']} ({fng['value_classification']})"
+    except: v["FNG"]="—"
 
-    # ── 14. HABERLER (RSS — ücretsiz, API key gereksiz) ───
+    # Market cap — Coinpaprika global
     try:
-        # CoinDesk RSS
-        rss = requests.get("https://www.coindesk.com/arc/outboundfeeds/rss/",timeout=6).text
-        items = []
-        import re
-        titles = re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", rss)[1:11]
-        links  = re.findall(r"<link>(https://www\.coindesk\.com.*?)</link>", rss)[:10]
-        dates  = re.findall(r"<pubDate>(.*?)</pubDate>", rss)[:10]
-        for i, title in enumerate(titles[:10]):
-            link = links[i] if i < len(links) else "#"
-            date = dates[i][:16] if i < len(dates) else ""
-            items.append({"title": title, "url": link, "source": "CoinDesk", "time": date})
-        v["NEWS"] = items
+        cg=requests.get("https://api.coinpaprika.com/v1/global",headers=HEADERS,timeout=5).json()
+        v["Total_MCap"]=f"${cg['market_cap_usd']/1e12:.2f}T"
+        v["Dom"]=f"%{cg['bitcoin_dominance_percentage']:.2f}"
+        v["ETH_Dom"]="—"  # Coinpaprika global ETH dom ayrı hesap gerekir
+    except: v["Total_MCap"]="—"; v["Dom"]="—"; v["ETH_Dom"]="—"
+
+    # ETH dominance — ayrı hesapla
+    try:
+        eth=requests.get("https://api.coinpaprika.com/v1/tickers/eth-ethereum",
+                         headers=HEADERS,timeout=5).json()
+        btc_mc=requests.get("https://api.coinpaprika.com/v1/tickers/btc-bitcoin",
+                             headers=HEADERS,timeout=5).json()
+        total_mc_raw=float(btc_mc["quotes"]["USD"]["market_cap"])/( float(v["Dom"].replace("%",""))/100 ) if v["Dom"]!="—" else 0
+        if total_mc_raw>0:
+            v["ETH_Dom"]=f"%{float(eth['quotes']['USD']['market_cap'])/total_mc_raw*100:.2f}"
+    except: pass
+
+    # ── 15. HABERLER — CoinDesk RSS ───────────────────────
+    try:
+        rss=requests.get("https://www.coindesk.com/arc/outboundfeeds/rss/",
+                         headers=HEADERS,timeout=8).text
+        titles=re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>",rss)[1:11]
+        links =re.findall(r"<link>(https://www\.coindesk\.com.*?)</link>",rss)[:10]
+        dates =re.findall(r"<pubDate>(.*?)</pubDate>",rss)[:10]
+        v["NEWS"]=[
+            {"title":t,"url":links[i] if i<len(links) else "#",
+             "source":"CoinDesk","time":dates[i][:16] if i<len(dates) else ""}
+            for i,t in enumerate(titles)
+        ]
     except:
-        # Fallback: CryptoCompare
         try:
-            nr = requests.get(
+            nr=requests.get(
                 "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest&limit=10",
-                timeout=6).json()
-            v["NEWS"] = [
-                {"title": n["title"], "url": n["url"],
-                 "source": n["source_info"]["name"],
-                 "time": pd.Timestamp(n["published_on"],unit="s").strftime("%d %b %H:%M")}
+                headers=HEADERS,timeout=6).json()
+            v["NEWS"]=[
+                {"title":n["title"],"url":n["url"],"source":n["source_info"]["name"],
+                 "time":pd.Timestamp(n["published_on"],unit="s").strftime("%d %b %H:%M")}
                 for n in nr["Data"][:10]
             ]
-        except:
-            v["NEWS"] = []
+        except: v["NEWS"]=[]
 
     return v
 
@@ -330,7 +286,7 @@ def veri_motoru():
 # =========================================================
 # ARAYÜZ
 # =========================================================
-st.title("🛡️ Serhat's Alpha Terminal v16.1")
+st.title("🛡️ Serhat's Alpha Terminal v16.2")
 st.caption("Kripto · Makro · Forex · Emtia · Haber | Her 5 dakikada güncellenir")
 
 with st.spinner("Tüm piyasa verileri yükleniyor..."):
@@ -338,23 +294,20 @@ with st.spinner("Tüm piyasa verileri yükleniyor..."):
 
 # SIDEBAR
 st.sidebar.title("📥 Veri Arşivi")
-df_exp = pd.DataFrame([(k,v) for k,v in data.items() if k!="NEWS"],columns=["Metrik","Değer"])
-csv = df_exp.to_csv(index=False,sep=";").encode("utf-8-sig")
-st.sidebar.download_button("💾 CSV İndir", csv,
-    file_name=f"SerhatTerminal_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
-    mime="text/csv")
+df_exp=pd.DataFrame([(k,v) for k,v in data.items() if k!="NEWS"],columns=["Metrik","Değer"])
+csv=df_exp.to_csv(index=False,sep=";").encode("utf-8-sig")
+st.sidebar.download_button("💾 CSV İndir",csv,
+    file_name=f"SerhatTerminal_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",mime="text/csv")
 st.sidebar.divider()
-st.sidebar.markdown("**Model:** Gemini 2.0 Flash\n\n**Kaynak:** 16 Bağımsız API\n\n**Güncelleme:** Her 5 dk")
+st.sidebar.markdown("**Model:** Gemini 2.0 Flash\n\n**Kaynak:** Coinpaprika · Bybit · DeFiLlama · yFinance\n\n**Güncelleme:** Her 5 dk")
 
-tab1,tab2,tab3,tab4,tab5 = st.tabs([
-    "₿ Kripto","🌍 Makro & Forex","📊 Grafik & Rapor","📰 Haberler","⚙️ Detay"
-])
+tab1,tab2,tab3,tab4,tab5=st.tabs(["₿ Kripto","🌍 Makro & Forex","📊 Grafik & Rapor","📰 Haberler","⚙️ Detay"])
 
 
-# ── TAB 1: KRİPTO ─────────────────────────────────────────
+# ── TAB 1 ─────────────────────────────────────────────────
 with tab1:
     st.markdown("<div class='section-title'>₿ Bitcoin & Temel Göstergeler</div>",unsafe_allow_html=True)
-    c1,c2,c3,c4,c5,c6 = st.columns(6)
+    c1,c2,c3,c4,c5,c6=st.columns(6)
     c1.metric("BTC Fiyatı",       data.get("BTC_P"),    data.get("BTC_C"))
     c2.metric("Korku/Açgözlülük", data.get("FNG"))
     c3.metric("BTC Dominance",    data.get("Dom"))
@@ -364,19 +317,19 @@ with tab1:
 
     st.divider()
     st.markdown("<div class='section-title'>🪙 Altcoin Fiyatları</div>",unsafe_allow_html=True)
-    a1,a2,a3,a4 = st.columns(4)
+    a1,a2,a3,a4=st.columns(4)
     a1.metric("Ethereum (ETH)",  data.get("ETH_P"),  data.get("ETH_C"))
     a2.metric("Solana (SOL)",    data.get("SOL_P"),  data.get("SOL_C"))
     a3.metric("BNB",             data.get("BNB_P"),  data.get("BNB_C"))
     a4.metric("XRP",             data.get("XRP_P"),  data.get("XRP_C"))
-    a5,a6,a7,a8 = st.columns(4)
+    a5,a6,a7,a8=st.columns(4)
     a5.metric("Cardano (ADA)",   data.get("ADA_P"),  data.get("ADA_C"))
     a6.metric("Avalanche (AVAX)",data.get("AVAX_P"), data.get("AVAX_C"))
     a7.metric("Polkadot (DOT)",  data.get("DOT_P"),  data.get("DOT_C"))
     a8.metric("Chainlink (LINK)",data.get("LINK_P"), data.get("LINK_C"))
 
     st.divider()
-    col_etf,col_stable,col_ls = st.columns(3)
+    col_etf,col_stable,col_ls=st.columns(3)
 
     with col_etf:
         st.markdown("<div class='section-title'>🏦 Bitcoin ETF (Son Kapanış)</div>",unsafe_allow_html=True)
@@ -388,7 +341,7 @@ with tab1:
         st.metric("ARKB (ARK)",       data.get("ARKB_P"),  data.get("ARKB_C"))
 
     with col_stable:
-        st.markdown("<div class='section-title'>💵 Stablecoin Akışları (DeFiLlama)</div>",unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>💵 Stablecoin (DeFiLlama)</div>",unsafe_allow_html=True)
         st.metric("Toplam Stablecoin",data.get("Total_Stable"))
         st.metric("USDT Market Cap",  data.get("USDT_MCap"))
         st.metric("USDC Market Cap",  data.get("USDC_MCap"))
@@ -397,7 +350,7 @@ with tab1:
         st.metric("24s BTC Hacim",    data.get("Vol_24h"))
 
     with col_ls:
-        st.markdown("<div class='section-title'>📊 Türev & Pozisyon</div>",unsafe_allow_html=True)
+        st.markdown("<div class='section-title'>📊 Türev & Pozisyon (Bybit)</div>",unsafe_allow_html=True)
         st.metric("L/S Sinyal",       data.get("LS_Signal"))
         st.metric("Long/Short Oranı", data.get("LS_Ratio"))
         st.metric("Long Pozisyonlar", data.get("Long_Pct"))
@@ -408,66 +361,50 @@ with tab1:
 
     st.divider()
     st.markdown("<div class='section-title'>🐋 Balina Duvarları (Kraken)</div>",unsafe_allow_html=True)
-    w1,w2,w3 = st.columns(3)
+    w1,w2,w3=st.columns(3)
     w1.metric("Tahta Durumu",         data.get("Wall_Status"))
-    w2.metric("🟢 Ana Destek Duvarı", data.get("Sup_Wall"), f"{data.get('Sup_Vol')} Bekliyor")
-    w3.metric("🔴 Ana Direnç Duvarı", data.get("Res_Wall"), f"−{data.get('Res_Vol')} Bekliyor")
+    w2.metric("🟢 Ana Destek Duvarı", data.get("Sup_Wall"),f"{data.get('Sup_Vol')} Bekliyor")
+    w3.metric("🔴 Ana Direnç Duvarı", data.get("Res_Wall"),f"−{data.get('Res_Vol')} Bekliyor")
 
 
-# ── TAB 2: MAKRO & FOREX ──────────────────────────────────
+# ── TAB 2 ─────────────────────────────────────────────────
 with tab2:
-    col_idx,col_forex,col_com = st.columns(3)
-
+    col_idx,col_forex,col_com=st.columns(3)
     with col_idx:
         st.markdown("<div class='section-title'>📈 Global Hisse Endeksleri</div>",unsafe_allow_html=True)
-        for label,key in [
-            ("S&P 500","SP500"),("NASDAQ","NASDAQ"),("DOW JONES","DOW"),
-            ("DAX","DAX"),("FTSE 100","FTSE"),("Nikkei 225","NIKKEI"),
-            ("Hang Seng","HSI"),("BIST 100","BIST100"),("VIX","VIX")
-        ]:
-            st.metric(label, data.get(key), data.get(f"{key}_C"))
-
+        for label,key in [("S&P 500","SP500"),("NASDAQ","NASDAQ"),("DOW JONES","DOW"),
+                           ("DAX","DAX"),("FTSE 100","FTSE"),("Nikkei 225","NIKKEI"),
+                           ("Hang Seng","HSI"),("BIST 100","BIST100"),("VIX","VIX")]:
+            st.metric(label,data.get(key),data.get(f"{key}_C"))
     with col_forex:
         st.markdown("<div class='section-title'>💱 Döviz Kurları</div>",unsafe_allow_html=True)
-        for label,key in [
-            ("DXY (Dolar Endeksi)","DXY"),("EUR/USD","EURUSD"),
-            ("GBP/USD","GBPUSD"),("USD/JPY","USDJPY"),
-            ("USD/TRY","USDTRY"),("USD/CHF","USDCHF"),
-            ("AUD/USD","AUDUSD"),("ABD 10Y Tahvil","US10Y")
-        ]:
-            st.metric(label, data.get(key), data.get(f"{key}_C"))
-
+        for label,key in [("DXY","DXY"),("EUR/USD","EURUSD"),("GBP/USD","GBPUSD"),
+                           ("USD/JPY","USDJPY"),("USD/TRY","USDTRY"),("USD/CHF","USDCHF"),
+                           ("AUD/USD","AUDUSD"),("ABD 10Y Tahvil","US10Y")]:
+            st.metric(label,data.get(key),data.get(f"{key}_C"))
     with col_com:
         st.markdown("<div class='section-title'>🏭 Emtialar</div>",unsafe_allow_html=True)
-        for label,key in [
-            ("Altın (XAU/USD)","GOLD"),("Gümüş (XAG/USD)","SILVER"),
-            ("Ham Petrol (WTI)","OIL"),("Doğalgaz","NATGAS"),
-            ("Bakır","COPPER"),("Buğday","WHEAT")
-        ]:
-            st.metric(label, data.get(key), data.get(f"{key}_C"))
+        for label,key in [("Altın","GOLD"),("Gümüş","SILVER"),("Ham Petrol","OIL"),
+                           ("Doğalgaz","NATGAS"),("Bakır","COPPER"),("Buğday","WHEAT")]:
+            st.metric(label,data.get(key),data.get(f"{key}_C"))
         st.divider()
         st.markdown("<div class='section-title'>🔗 BTC Korelasyonları (30g)</div>",unsafe_allow_html=True)
-        st.metric("BTC ↔ S&P500", data.get("Corr_SP500"))
-        st.metric("BTC ↔ Altın",  data.get("Corr_Gold"))
+        st.metric("BTC ↔ S&P500",data.get("Corr_SP500"))
+        st.metric("BTC ↔ Altın", data.get("Corr_Gold"))
 
 
-# ── TAB 3: GRAFİK & RAPOR ────────────────────────────────
+# ── TAB 3 ─────────────────────────────────────────────────
 with tab3:
-    col_chart,col_side = st.columns([2.2,1.2])
-
+    col_chart,col_side=st.columns([2.2,1.2])
     with col_chart:
         st.subheader("📊 Canlı BTC/USDT Grafiği")
         components.html("""
         <div style="height:520px;">
         <script src="https://s3.tradingview.com/tv.js"></script>
-        <script>new TradingView.widget({
-            autosize:true,symbol:"BINANCE:BTCUSDT",interval:"D",
-            theme:"dark",style:"1",locale:"tr",toolbar_bg:"#020617",
-            container_id:"tv_main"
-        });</script>
-        <div id="tv_main" style="height:100%;"></div></div>
-        """, height=540)
-
+        <script>new TradingView.widget({autosize:true,symbol:"BINANCE:BTCUSDT",
+        interval:"D",theme:"dark",style:"1",locale:"tr",toolbar_bg:"#020617",
+        container_id:"tv_main"});</script>
+        <div id="tv_main" style="height:100%;"></div></div>""",height=540)
     with col_side:
         st.subheader("📅 Ekonomik Takvim")
         components.html("""
@@ -475,70 +412,42 @@ with tab3:
         <div class="tradingview-widget-container__widget"></div>
         <script src="https://s3.tradingview.com/external-embedding/embed-widget-events.js" async>
         {"colorTheme":"dark","isTransparent":true,"width":"100%","height":"480",
-        "locale":"tr","importanceFilter":"0,1","currencyFilter":"USD,EUR"}
-        </script></div>
-        """, height=500)
-
+        "locale":"tr","importanceFilter":"0,1","currencyFilter":"USD,EUR"}</script></div>""",height=500)
         st.divider()
         st.subheader("📄 God Mode Strateji Raporu")
-        st.caption("Gemini 2.0 Flash · Tüm veriler dahil")
-
-        if st.button("🚀 RAPOR OLUŞTUR", use_container_width=True):
+        if st.button("🚀 RAPOR OLUŞTUR",use_container_width=True):
             with st.spinner("AI analiz ediyor..."):
-                clean = {k:v for k,v in data.items() if k!="NEWS"}
-                prompt = f"""
-Sen deneyimli bir makro-kripto fon yöneticisisin.
+                clean={k:v for k,v in data.items() if k!="NEWS"}
+                prompt=f"""Sen deneyimli bir makro-kripto fon yöneticisisin.
 Aşağıdaki GERÇEK piyasa verilerini kullanarak Serhat için strateji raporu yaz. Türkçe.
-
 VERİLER: {str(clean)}
-
-## 1. Makro Durum
-Global endeksler, Forex (DXY, TRY), emtialar ve BTC korelasyonlarını yorumla.
-VIX, FED faizi ve M2'nin mesajını açıkla.
-
-## 2. Kripto Piyasa Yapısı
-Long/Short: {data.get('LS_Ratio')} ({data.get('LS_Signal')})
-Funding: {data.get('FR')}, OI: {data.get('OI')}
-Stablecoin: {data.get('Total_Stable')}, ETF Akış: {data.get('IBIT_Flow')}
-
-## 3. Balina Duvarı Analizi
-Destek: {data.get('Sup_Wall')} ({data.get('Sup_Vol')})
-Direnç: {data.get('Res_Wall')} ({data.get('Res_Vol')})
-
-## 4. Altcoin Sinyalleri
-ETH, SOL, BNB performanslarını BTC dominance ile ilişkilendir.
-
-## 5. Aksiyon Planı (1-3 Gün)
-Kesin fiyat seviyeleri, Long/Short/Bekle kararı, stop-loss ve hedefler.
-"""
+## 1. Makro Durum — endeksler, forex, emtialar, BTC korelasyonları
+## 2. Kripto Yapısı — L/S:{data.get('LS_Ratio')}({data.get('LS_Signal')}), FR:{data.get('FR')}, OI:{data.get('OI')}, Stable:{data.get('Total_Stable')}
+## 3. Balina Duvarları — Destek:{data.get('Sup_Wall')}({data.get('Sup_Vol')}), Direnç:{data.get('Res_Wall')}({data.get('Res_Vol')})
+## 4. Altcoin Sinyalleri — ETH, SOL, BNB ve BTC dominance ilişkisi
+## 5. Aksiyon Planı (1-3 Gün) — kesin fiyat seviyeleri, Long/Short/Bekle, stop-loss, hedef"""
                 try:
-                    resp = client.chat.completions.create(
+                    resp=client.chat.completions.create(
                         model="google/gemini-2.0-flash-001",
-                        messages=[{"role":"user","content":prompt}],
-                        max_tokens=2000)
-                    st.markdown(
-                        f'<div class="report-box">{resp.choices[0].message.content}</div>',
-                        unsafe_allow_html=True)
+                        messages=[{"role":"user","content":prompt}],max_tokens=2000)
+                    st.markdown(f'<div class="report-box">{resp.choices[0].message.content}</div>',unsafe_allow_html=True)
                 except Exception as e:
                     st.error(f"AI hatası: {e}")
 
 
-# ── TAB 4: HABERLER ──────────────────────────────────────
+# ── TAB 4 ─────────────────────────────────────────────────
 with tab4:
     st.subheader("📰 Son Kripto Haberleri")
-    st.caption("CoinDesk RSS · Otomatik güncellenir · API key gereksiz")
-
-    news = data.get("NEWS", [])
+    st.caption("CoinDesk RSS · API key gereksiz")
+    news=data.get("NEWS",[])
     if news:
         for item in news:
-            st.markdown(f"""
-            <div class="news-item">
+            st.markdown(f"""<div class="news-item">
                 <a href="{item['url']}" target="_blank">{item['title']}</a>
                 <div class="meta">🕐 {item['time']} · {item['source']}</div>
-            </div>""", unsafe_allow_html=True)
+            </div>""",unsafe_allow_html=True)
     else:
-        st.info("Haber verisi yüklenemedi. Birkaç dakika sonra tekrar deneyin.")
-
+        st.info("Haber yüklenemedi. Birkaç dakika sonra tekrar deneyin.")
     st.divider()
     st.subheader("📡 Canlı Haber Bandı (TradingView)")
     components.html("""
@@ -546,39 +455,21 @@ with tab4:
     <div class="tradingview-widget-container__widget"></div>
     <script src="https://s3.tradingview.com/external-embedding/embed-widget-timeline.js" async>
     {"feedMode":"all_symbols","isTransparent":true,"displayMode":"regular",
-    "width":"100%","height":"600","colorTheme":"dark","locale":"tr"}
-    </script></div>
-    """, height=620)
+    "width":"100%","height":"600","colorTheme":"dark","locale":"tr"}</script></div>""",height=620)
 
 
-# ── TAB 5: DETAY ─────────────────────────────────────────
+# ── TAB 5 ─────────────────────────────────────────────────
 with tab5:
     st.subheader("⚙️ Tüm Metrikler")
-    sections = {
-        "Kripto Türevler": [
-            ("Open Interest","OI"),("Funding Rate","FR"),("Taker B/S","Taker"),
-            ("L/S Oranı","LS_Ratio"),("Long %","Long_Pct"),("Short %","Short_Pct"),
-        ],
-        "On-Chain & Ağ": [
-            ("Aktif Adres","Active"),("Hashrate","Hash"),("BTC Dom","Dom"),
-            ("ETH Dom","ETH_Dom"),("Total MCap","Total_MCap"),("24s Hacim","Vol_24h"),
-        ],
-        "Stablecoin & ETF": [
-            ("Toplam Stable","Total_Stable"),("USDT MCap","USDT_MCap"),
-            ("USDC MCap","USDC_MCap"),("DAI MCap","DAI_MCap"),
-            ("IBIT Hacim","IBIT_Vol"),("IBIT Akış","IBIT_Flow"),
-        ],
-        "Makro": [
-            ("M2 (YoY)","M2"),("FED Faizi","FED"),("VIX","VIX"),
-            ("DXY","DXY"),("ABD 10Y","US10Y"),
-            ("BTC↔SP500","Corr_SP500"),("BTC↔Altın","Corr_Gold"),
-        ],
+    sections={
+        "Kripto Türevler":[("OI","OI"),("FR","FR"),("Taker","Taker"),("L/S","LS_Ratio"),("Long%","Long_Pct"),("Short%","Short_Pct")],
+        "On-Chain & Ağ":[("Aktif Adres","Active"),("Hashrate","Hash"),("BTC Dom","Dom"),("ETH Dom","ETH_Dom"),("Total MCap","Total_MCap"),("24s Hacim","Vol_24h")],
+        "Stablecoin & ETF":[("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),("USDC","USDC_MCap"),("DAI","DAI_MCap"),("IBIT Hacim","IBIT_Vol"),("IBIT Akış","IBIT_Flow")],
+        "Makro":[("M2 YoY","M2"),("FED","FED"),("VIX","VIX"),("DXY","DXY"),("10Y","US10Y"),("BTC↔SP500","Corr_SP500"),("BTC↔Altın","Corr_Gold")],
     }
-    d1,d2,d3,d4 = st.columns(4)
+    d1,d2,d3,d4=st.columns(4)
     for col_ui,(section,items) in zip([d1,d2,d3,d4],sections.items()):
         with col_ui:
             st.markdown(f"**{section}**")
-            df = pd.DataFrame(
-                [(lbl, data.get(key,"—")) for lbl,key in items],
-                columns=["Metrik","Değer"])
-            st.dataframe(df, use_container_width=True, hide_index=True)
+            df=pd.DataFrame([(lbl,data.get(key,"—")) for lbl,key in items],columns=["Metrik","Değer"])
+            st.dataframe(df,use_container_width=True,hide_index=True)
