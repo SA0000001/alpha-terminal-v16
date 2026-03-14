@@ -140,16 +140,41 @@ def veri_cek():
 # EKONOMİK TAKVİM (Trading Economics — ücretsiz RSS)
 # =========================================================
 def takvim_cek():
+    sonuclar = []
+
+    # Kaynak 1: Trading Economics RSS
     try:
-        rss = requests.get(
-            "https://tradingeconomics.com/rss/calendar.aspx",
-            headers=HEADERS, timeout=8).text
-        titles = re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", rss)[1:8]
-        today  = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%a, %d %b")
-        bugun  = [t for t in titles if any(k in t for k in ["USD","EUR","Fed","CPI","NFP","GDP","PMI","FOMC","Powell"])]
-        return bugun[:5] if bugun else titles[:4]
+        rss    = requests.get("https://tradingeconomics.com/rss/calendar.aspx",
+                              headers=HEADERS, timeout=8).text
+        titles = re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", rss)[1:15]
+        kritik = [t for t in titles if any(k in t for k in
+                  ["USD","EUR","Fed","CPI","NFP","GDP","PMI","FOMC","Powell",
+                   "Interest Rate","Inflation","Unemployment","Retail","ISM"])]
+        sonuclar = kritik[:5] if kritik else titles[:4]
     except:
-        return []
+        pass
+
+    # Kaynak 2: ForexFactory RSS (yedek)
+    if not sonuclar:
+        try:
+            rss2   = requests.get("https://nfs.faireconomy.media/ff_calendar_thisweek.xml",
+                                  headers=HEADERS, timeout=8).text
+            titles2= re.findall(r"<title>(.*?)</title>", rss2)[1:10]
+            sonuclar = titles2[:5]
+        except:
+            pass
+
+    # Bugünün gün ve tarihini ekle
+    bugun_str = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%A, %d %B %Y")
+    if sonuclar:
+        return sonuclar
+    else:
+        # Boş bile olsa AI'a bilgi ver
+        return [
+            f"📅 Bugün ({bugun_str}) için yüksek etkili veri takvimde tespit edilemedi.",
+            "Bu tür günlerde piyasa fiyat hareketi haber akışı ve teknik seviyelere duyarlı olur.",
+            "Özellikle BTC'de büyük bir balinanın hamlesi veya ETF akış verisi yön belirleyici olabilir.",
+        ]
 
 
 # =========================================================
@@ -172,24 +197,44 @@ def ai_raporu(v, takvim, haberler):
     takvim_str = "\n".join(f"• {t}" for t in takvim) if takvim else "Önemli veri yok"
     haber_str  = "\n".join(f"• {h}" for h in haberler) if haberler else "Haber alınamadı"
 
-    prompt = f"""
-Sen deneyimli bir makro-kripto fon yöneticisisin.
-Aşağıdaki GERÇEK sabah verilerini analiz ederek Serhat için kısa, net ve eyleme dönüşebilir 
-bir günlük strateji bülteni hazırla. Türkçe yaz. Telegram için uygun formatta, 
-emoji kullan, başlıkları kalın yap (**başlık**).
+    bugun = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%d %B %Y, %A")
 
-📊 PİYASA VERİLERİ:
-BTC: {v['BTC_P']} ({v['BTC_C']})
-ETH: {v['ETH_P']} ({v['ETH_C']}) | SOL: {v['SOL_P']} ({v['SOL_C']})
-SP500: {v['SP500']} ({v['SP500_C']}) | VIX: {v['VIX']} | DXY: {v['DXY']} ({v['DXY_C']})
-Altın: {v['GOLD']} ({v['GOLD_C']}) | USD/TRY: {v['USDTRY']}
-US10Y: {v['US10Y']} | FED: {v['FED']} | M2: {v['M2']}
-Korku/Açgözlülük: {v['FNG']}
-Destek Duvarı: {v['Sup_Wall']} ({v['Sup_Vol']})
-Direnç Duvarı: {v['Res_Wall']} ({v['Res_Vol']})
-Long/Short: {v['LS_Ratio']} ({v['LS_Signal']}) | Long: {v['Long_Pct']} | Short: {v['Short_Pct']}
-OI: {v['OI']} | Funding: {v['FR']}
-Stablecoin: {v['Total_Stable']}
+    prompt = f"""
+Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisisin.
+Aşağıdaki GERÇEK verileri kullanarak Serhat için derinlikli, rakamsal ve eyleme dönüşebilir 
+bir sabah bülteni yaz. Türkçe yaz. Telegram Markdown formatı kullan (**kalın**, _italik_).
+
+KURALLAR:
+- Her iddiayı mutlaka rakamla destekle. Örneğin "DXY yükseliyor" değil, "DXY {v['DXY']} ({v['DXY_C']}) seviyesinde yükseliyor" yaz.
+- Seviyeleri kesin belirt: "destek kırılırsa" değil "{v['Sup_Wall']} kırılırsa" yaz.
+- Yüzeysel kalma, her bölüm derinlikli olsun.
+- max_tokens yüksek, bolca yaz.
+
+📊 GERÇEK VERİLER ({bugun}):
+
+*Kripto:*
+• BTC: {v['BTC_P']} | 24s: {v['BTC_C']} | Hacim: {v['Vol_24h']}
+• ETH: {v['ETH_P']} ({v['ETH_C']}) | SOL: {v['SOL_P']} ({v['SOL_C']})
+• BNB: {v['BNB_P']} ({v['BNB_C']}) | XRP: {v['XRP_P']} ({v['XRP_C']})
+• Korku/Açgözlülük: {v['FNG']}
+• BTC Dominance: {v.get('Dom','—')}
+
+*Balina Duvarları:*
+• 🟢 Ana Destek: {v['Sup_Wall']} ({v['Sup_Vol']} BTC bekliyor)
+• 🔴 Ana Direnç: {v['Res_Wall']} ({v['Res_Vol']} BTC bekliyor)
+
+*Türev Piyasalar:*
+• Long/Short Oranı: {v['LS_Ratio']} → {v['LS_Signal']}
+• Long: {v['Long_Pct']} | Short: {v['Short_Pct']}
+• Open Interest: {v['OI']}
+• Funding Rate: {v['FR']}
+• Stablecoin Likiditesi: {v['Total_Stable']}
+
+*Global Makro:*
+• SP500: {v['SP500']} ({v['SP500_C']}) | VIX: {v['VIX']} ({v.get('VIX_C','—')})
+• DXY: {v['DXY']} ({v['DXY_C']}) | Altın: {v['GOLD']} ({v['GOLD_C']})
+• USD/TRY: {v['USDTRY']} | ABD 10Y: {v['US10Y']}
+• FED Faizi: {v['FED']} | M2 Büyümesi: {v['M2']}
 
 📅 BUGÜNKÜ EKONOMİK TAKVİM:
 {takvim_str}
@@ -197,20 +242,52 @@ Stablecoin: {v['Total_Stable']}
 📰 SON KRİPTO HABERLERİ:
 {haber_str}
 
-Rapor yapısı (kısa tut, Telegram'a sığsın):
-**🌅 Sabah Bülteni — [TARİH]**
-**📈 Makro Durum** — 2-3 cümle
-**₿ BTC Analizi** — fiyat, duvarlar, yön tahmini
-**📅 Bugünün Kritik Olayları** — takvimden önemli olanlar
-**📰 Öne Çıkan Haber** — en kritik 1-2 haber
-**🎯 Günlük Aksiyon** — Long/Short/Bekle + seviyeler
-**⚠️ Risk** — bugün dikkat edilmesi gereken 1 şey
+---
+RAPOR YAPISI (bu sırayı koru, her bölüm 3-5 cümle olsun):
+
+**🌅 Sabah Bülteni — {bugun}**
+
+**📈 Makro & Korelasyon Analizi**
+SP500, VIX, DXY rakamlarını ver ve BTC ile korelasyonunu yorumla.
+Altın ve tahvil faizinin mesajını açıkla. M2 ve FED faizinin likidite üzerindeki etkisini belirt.
+USD/TRY seviyesinin TL bazlı yatırımcıya etkisini yorum.
+
+**₿ BTC Teknik & Türev Analizi**
+Fiyatı, günlük değişimi ve hacmi belirt.
+Balina duvarlarını rakamsal yorumla — kaç BTC bekliyor, fiyata etkisi ne olur?
+Funding rate pozitif mi negatif mi, ne anlama geliyor?
+Long/Short oranını yorumla — aşırı long kalabalık mı, short sıkışması var mı?
+OI artıyor mu azalıyor mu?
+
+**🪙 Altcoin Sinyalleri**
+ETH, SOL, BNB günlük performanslarını rakamsal karşılaştır.
+BTC dominance ile altcoin sezonu ilişkisini yorumla.
+
+**📅 Bugünün Ekonomik Takvimi**
+Takvim verisini analiz et:
+- Veri VARSA: hangi veri, saat kaçta, önceki değer ne, beklenti ne, piyasaya etkisi ne olur?
+- Veri YOKSA: "Bugün yüksek etkili makro veri yok" diyip geçme! Bunun yerine şunları yaz:
+  * Takvim boşken hangi faktörler fiyatı yönlendirir (ETF akışı, balina hareketi, teknik seviyeler)?
+  * Bu hafta içinde yaklaşan önemli bir veri var mı (FOMC, CPI, NFP gibi)?
+  * Takvimin boş olması BTC için fırsat mı yoksa tehlike mi — gerekçeyle açıkla.
+
+**📰 Piyasayı Etkileyen Haberler**
+En kritik 2 haberi seç ve BTC/kripto üzerindeki olası etkisini açıkla.
+
+**🎯 Günlük Aksiyon Planı**
+3 senaryo yaz — hepsi rakamsal olsun:
+• 📗 LONG: hangi seviyenin üzerinde, hedef fiyat, stop-loss
+• 📕 SHORT: hangi seviyenin altında, hedef fiyat, stop-loss
+• 📒 BEKLE: hangi koşulda beklemek daha mantıklı
+
+**⚠️ Bugünün En Kritik Riski**
+Tek cümle, net ve rakamsal.
 """
 
     resp = client.chat.completions.create(
         model="google/gemini-2.0-flash-001",
         messages=[{"role":"user","content":prompt}],
-        max_tokens=1200
+        max_tokens=2500
     )
     return resp.choices[0].message.content
 
