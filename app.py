@@ -277,18 +277,25 @@ def veri_motoru():
         v["Total_Stable"]="—"; v["USDT_MCap"]="—"
         v["USDC_MCap"]="—"; v["DAI_MCap"]="—"; v["USDT_Dom_Stable"]="—"
 
-    # USDT.D — Tüm kripto piyasası içindeki USDT payı (TradingView USDT.D ile aynı mantık)
+    # USDT.D — CoinGecko global (TradingView CRYPTOCAP:USDT.D ile aynı)
     try:
-        cg_g = requests.get("https://api.coinpaprika.com/v1/global",
-                            headers=HEADERS, timeout=6).json()
-        total_crypto_mcap = cg_g["market_cap_usd"]
-        usdt_r = requests.get("https://api.coinpaprika.com/v1/tickers/usdt-tether",
-                              headers=HEADERS, timeout=6).json()
-        usdt_mcap = usdt_r["quotes"]["USD"]["market_cap"]
-        usdt_d = usdt_mcap / total_crypto_mcap * 100
-        v["USDT_D"] = f"%{usdt_d:.2f}"
+        cg_g = requests.get(
+            "https://api.coingecko.com/api/v3/global",
+            headers=HEADERS, timeout=6).json()["data"]
+        usdt_dom = cg_g["market_cap_percentage"]["usdt"]
+        v["USDT_D"] = f"%{usdt_dom:.2f}"
     except:
-        v["USDT_D"] = "—"
+        # Fallback: Coinpaprika
+        try:
+            cg_g2 = requests.get("https://api.coinpaprika.com/v1/global",
+                                 headers=HEADERS, timeout=6).json()
+            total_mcap = cg_g2["market_cap_usd"]
+            usdt_r = requests.get("https://api.coinpaprika.com/v1/tickers/usdt-tether",
+                                  headers=HEADERS, timeout=6).json()
+            usdt_mcap = usdt_r["quotes"]["USD"]["market_cap"]
+            v["USDT_D"] = f"%{usdt_mcap/total_mcap*100:.2f}"
+        except:
+            v["USDT_D"] = "—"
 
     # ── 10. OI + FUNDING + L/S → turev_cek()'e taşındı ──
     v["OI"]="—"; v["FR"]="—"; v["Taker"]="—"
