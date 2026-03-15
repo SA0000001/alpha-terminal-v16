@@ -46,26 +46,30 @@ def turev_cek():
     """Cache'siz — her yüklemede taze veri çeker."""
     t = {}
 
-    # ── OI + Funding — OKX (bulut uyumlu) ────────────────
+    # ── OI + Funding — OKX ───────────────────────────────
     try:
-        okx_t = requests.get(
-            "https://www.okx.com/api/v5/market/tickers?instType=SWAP&instId=BTC-USDT-SWAP",
-            headers=HEADERS, timeout=6).json()
-        d = okx_t["data"][0]
-        t["OI"] = f"{float(d['openInterest']):,.0f} BTC"
-        # Funding
         okx_fr = requests.get(
             "https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP",
             headers=HEADERS, timeout=6).json()
         fr = float(okx_fr["data"][0]["fundingRate"])
         t["FR"] = f"%{fr*100:.4f}"
     except:
-        t["OI"] = "—"; t["FR"] = "—"
+        t["FR"] = "—"
 
-    # ── Taker B/S — OKX ───────────────────────────────────
+    try:
+        okx_oi = requests.get(
+            "https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=BTC-USDT-SWAP",
+            headers=HEADERS, timeout=6).json()
+        oi = float(okx_oi["data"][0]["oi"])
+        t["OI"] = f"{oi:,.0f} BTC"
+    except:
+        t["OI"] = "—"
+
+    # ── Taker B/S — OKX ──────────────────────────────────
     try:
         tk = requests.get(
-            "https://www.okx.com/api/v5/rubik/stat/taker-volume?ccy=BTC&instType=contracts&period=1H",
+            "https://www.okx.com/api/v5/rubik/stat/taker-volume"
+            "?ccy=BTC&instType=contracts&period=1H",
             headers=HEADERS, timeout=6).json()
         buy_vol  = float(tk["data"][0][1])
         sell_vol = float(tk["data"][0][2])
@@ -73,59 +77,61 @@ def turev_cek():
     except:
         t["Taker"] = "1.000"
 
-    # ── Long/Short — OKX (en güvenilir, tüm borsalar ortalama) ──
+    # ── Long/Short — OKX (düzeltilmiş endpoint) ──────────
     ls_done = False
 
-    # Kaynak 1: OKX L/S oranı
+    # Kaynak 1: OKX long/short ratio
     if not ls_done:
         try:
             okx_ls = requests.get(
+                "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio-contract-top-trader"
+                "?instId=BTC-USDT-SWAP&period=1H",
+                headers=HEADERS, timeout=6).json()
+            if okx_ls.get("data") and len(okx_ls["data"]) > 0:
+                d     = okx_ls["data"][0]
+                lp    = float(d["longRatio"]) * 100
+                sp    = float(d["shortRatio"]) * 100
+                ratio = lp / sp if sp > 0 else 1
+                t["LS_Ratio"] = f"{ratio:.3f}"
+                t["Long_Pct"] = f"%{lp:.1f}"
+                t["Short_Pct"]= f"%{sp:.1f}"
+                t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
+                ls_done = True
+        except: pass
+
+    # Kaynak 2: OKX genel hesap L/S
+    if not ls_done:
+        try:
+            okx_ls2 = requests.get(
                 "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio"
                 "?ccy=BTC&period=1H",
                 headers=HEADERS, timeout=6).json()
-            d     = okx_ls["data"][0]
-            ratio = float(d["longShortRatio"])
-            lp    = ratio / (1 + ratio) * 100
-            t["LS_Ratio"] = f"{ratio:.3f}"
-            t["Long_Pct"] = f"%{lp:.1f}"
-            t["Short_Pct"]= f"%{100-lp:.1f}"
-            t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
-            ls_done = True
+            if okx_ls2.get("data") and len(okx_ls2["data"]) > 0:
+                d     = okx_ls2["data"][0]
+                # OKX bu endpointte [timestamp, longShortRatio] döndürür
+                ratio = float(d[1]) if isinstance(d, list) else float(d.get("longShortRatio", 1))
+                lp    = ratio / (1 + ratio) * 100
+                t["LS_Ratio"] = f"{ratio:.3f}"
+                t["Long_Pct"] = f"%{lp:.1f}"
+                t["Short_Pct"]= f"%{100-lp:.1f}"
+                t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
+                ls_done = True
         except: pass
 
-    # Kaynak 2: Gate.io L/S oranı
+    # Kaynak 3: Gate.io
     if not ls_done:
         try:
             gate = requests.get(
                 "https://api.gateio.ws/api/v4/futures/usdt/contract_stats"
                 "?contract=BTC_USDT&interval=1h&limit=1",
                 headers=HEADERS, timeout=6).json()
-            d     = gate[0]
-            lp    = float(d.get("long_liq_size", 50))
-            sp    = float(d.get("short_liq_size", 50))
-            ratio = lp / sp if sp > 0 else 1
-            total = lp + sp
-            t["LS_Ratio"] = f"{ratio:.3f}"
-            t["Long_Pct"] = f"%{lp/total*100:.1f}" if total > 0 else "—"
-            t["Short_Pct"]= f"%{sp/total*100:.1f}" if total > 0 else "—"
-            t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
-            ls_done = True
-        except: pass
-
-    # Kaynak 3: Kraken futures orderbook tahmini
-    if not ls_done:
-        try:
-            kr = requests.get(
-                "https://futures.kraken.com/derivatives/api/v3/orderbook?symbol=PF_XBTUSD",
-                headers=HEADERS, timeout=6).json()
-            bv = sum(float(x["qty"]) for x in kr["orderBook"]["bids"][:20])
-            av = sum(float(x["qty"]) for x in kr["orderBook"]["asks"][:20])
-            ratio = bv / av if av > 0 else 1
-            lp    = bv / (bv + av) * 100
-            t["LS_Ratio"] = f"{ratio:.3f}"
-            t["Long_Pct"] = f"%{lp:.1f}"
-            t["Short_Pct"]= f"%{100-lp:.1f}"
-            t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
+            d  = gate[0]
+            lp = float(d.get("lsr_taker", 1))  # long/short taker ratio
+            t["LS_Ratio"] = f"{lp:.3f}"
+            lp_pct = lp / (1 + lp) * 100
+            t["Long_Pct"] = f"%{lp_pct:.1f}"
+            t["Short_Pct"]= f"%{100-lp_pct:.1f}"
+            t["LS_Signal"]= "🟢 Long Ağırlıklı" if lp > 1 else "🔴 Short Ağırlıklı"
             ls_done = True
         except: pass
 
@@ -251,15 +257,14 @@ def veri_motoru():
     except:
         v["Sup_Wall"]="—"; v["Sup_Vol"]="—"; v["Res_Wall"]="—"; v["Res_Vol"]="—"; v["Wall_Status"]="Veri Yok"
 
-    # ── 9. STABLECOİN — DeFiLlama ─────────────────────────
+    # ── 9. STABLECOİN — DeFiLlama + USDT.D ──────────────
     try:
         sc=requests.get("https://stablecoins.llama.fi/stablecoins?includePrices=true",
                         headers=HEADERS,timeout=8).json()["peggedAssets"]
         total=sum(c.get("circulating",{}).get("peggedUSD",0) for c in sc)
         def get_cap(symbol):
             c=next((x for x in sc if x["symbol"].upper()==symbol.upper()),None)
-            if c: return c['circulating']['peggedUSD']
-            return 0
+            return c['circulating']['peggedUSD'] if c else 0
         usdt_cap = get_cap("USDT")
         usdc_cap = get_cap("USDC")
         dai_cap  = get_cap("DAI")
@@ -267,10 +272,23 @@ def veri_motoru():
         v["USDT_MCap"]    = f"${usdt_cap/1e9:.1f}B"
         v["USDC_MCap"]    = f"${usdc_cap/1e9:.1f}B"
         v["DAI_MCap"]     = f"${dai_cap/1e9:.1f}B"
-        v["USDT_Dom"]     = f"%{usdt_cap/total*100:.1f}" if total > 0 else "—"
+        v["USDT_Dom_Stable"] = f"%{usdt_cap/total*100:.1f}" if total > 0 else "—"
     except:
         v["Total_Stable"]="—"; v["USDT_MCap"]="—"
-        v["USDC_MCap"]="—"; v["DAI_MCap"]="—"; v["USDT_Dom"]="—"
+        v["USDC_MCap"]="—"; v["DAI_MCap"]="—"; v["USDT_Dom_Stable"]="—"
+
+    # USDT.D — Tüm kripto piyasası içindeki USDT payı (TradingView USDT.D ile aynı mantık)
+    try:
+        cg_g = requests.get("https://api.coinpaprika.com/v1/global",
+                            headers=HEADERS, timeout=6).json()
+        total_crypto_mcap = cg_g["market_cap_usd"]
+        usdt_r = requests.get("https://api.coinpaprika.com/v1/tickers/usdt-tether",
+                              headers=HEADERS, timeout=6).json()
+        usdt_mcap = usdt_r["quotes"]["USD"]["market_cap"]
+        usdt_d = usdt_mcap / total_crypto_mcap * 100
+        v["USDT_D"] = f"%{usdt_d:.2f}"
+    except:
+        v["USDT_D"] = "—"
 
     # ── 10. OI + FUNDING + L/S → turev_cek()'e taşındı ──
     v["OI"]="—"; v["FR"]="—"; v["Taker"]="—"
@@ -423,13 +441,13 @@ with tab1:
 
     with col_stable:
         st.markdown("<div class='section-title'>💵 Stablecoin (DeFiLlama)</div>",unsafe_allow_html=True)
-        st.metric("Toplam Stablecoin",data.get("Total_Stable"))
-        st.metric("USDT Market Cap",  data.get("USDT_MCap"))
-        st.metric("USDT Dominance",   data.get("USDT_Dom"))
-        st.metric("USDC Market Cap",  data.get("USDC_MCap"))
-        st.metric("DAI Market Cap",   data.get("DAI_MCap"))
-        st.metric("ETH Dominance",    data.get("ETH_Dom"))
-        st.metric("24s BTC Hacim",    data.get("Vol_24h"))
+        st.metric("Toplam Stablecoin", data.get("Total_Stable"))
+        st.metric("USDT Market Cap",   data.get("USDT_MCap"))
+        st.metric("USDT.D (Piyasa %)", data.get("USDT_D"))
+        st.metric("USDC Market Cap",   data.get("USDC_MCap"))
+        st.metric("DAI Market Cap",    data.get("DAI_MCap"))
+        st.metric("ETH Dominance",     data.get("ETH_Dom"))
+        st.metric("24s BTC Hacim",     data.get("Vol_24h"))
 
     with col_ls:
         st.markdown("<div class='section-title'>📊 Türev & Pozisyon (Bybit)</div>",unsafe_allow_html=True)
