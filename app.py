@@ -42,7 +42,76 @@ HEADERS = {"User-Agent": "Mozilla/5.0", "Accept": "application/json"}
 # =========================================================
 # VERİ MOTORU
 # =========================================================
-@st.cache_data(ttl=300)
+def turev_cek():
+    """Cache'siz — her yüklemede taze veri çeker."""
+    t = {}
+
+    # OI + Funding (Kraken Futures)
+    try:
+        kr = requests.get(
+            "https://futures.kraken.com/derivatives/api/v3/tickers",
+            headers=HEADERS, timeout=6).json()
+        btc = next((x for x in kr["tickers"] if x["symbol"]=="PF_XBTUSD"), None)
+        if btc:
+            t["OI"] = f"{float(btc.get('openInterest',0)):,.0f} BTC"
+            fr = btc.get("fundingRate")
+            t["FR"] = f"%{float(fr)*100:.4f}" if fr else "—"
+        else:
+            t["OI"]="—"; t["FR"]="—"
+    except:
+        t["OI"]="—"; t["FR"]="—"
+
+    # Taker B/S (Kraken orderbook)
+    try:
+        kr_ob = requests.get(
+            "https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=10",
+            headers=HEADERS, timeout=6).json()
+        pk  = list(kr_ob["result"].keys())[0]
+        bv  = sum(float(q) for _,q,_ in kr_ob["result"][pk]["bids"])
+        av  = sum(float(q) for _,q,_ in kr_ob["result"][pk]["asks"])
+        t["Taker"] = f"{bv/av:.3f}" if av>0 else "1.000"
+    except:
+        t["Taker"] = "1.000"
+
+    # Long/Short (Bitfinex → OKX → Kraken fallback)
+    ls_done = False
+    # Kaynak 1: Bitfinex
+    if not ls_done:
+        try:
+            lv = abs(float(requests.get(
+                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:long/hist?limit=1",
+                headers=HEADERS, timeout=6).json()[0][1]))
+            sv = abs(float(requests.get(
+                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:short/hist?limit=1",
+                headers=HEADERS, timeout=6).json()[0][1]))
+            tot = lv+sv; ratio = lv/sv if sv>0 else 1
+            t["LS_Ratio"] = f"{ratio:.3f}"
+            t["Long_Pct"] = f"%{lv/tot*100:.1f}"
+            t["Short_Pct"]= f"%{sv/tot*100:.1f}"
+            t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
+            ls_done = True
+        except: pass
+    # Kaynak 2: OKX
+    if not ls_done:
+        try:
+            okx = requests.get(
+                "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=BTC&period=1H",
+                headers=HEADERS, timeout=6).json()
+            d = okx["data"][0]
+            ratio = float(d["longShortRatio"])
+            lp = ratio/(1+ratio)*100
+            t["LS_Ratio"]=f"{ratio:.3f}"; t["Long_Pct"]=f"%{lp:.1f}"
+            t["Short_Pct"]=f"%{100-lp:.1f}"
+            t["LS_Signal"]="🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
+            ls_done = True
+        except: pass
+    if not ls_done:
+        t["LS_Ratio"]="—"; t["Long_Pct"]="—"; t["Short_Pct"]="—"; t["LS_Signal"]="—"
+
+    return t
+
+
+@st.cache_data(ttl=180)
 def veri_motoru():
     v = {}
 
@@ -171,98 +240,9 @@ def veri_motoru():
     except:
         v["Total_Stable"]="—"; v["USDT_MCap"]="—"; v["USDC_MCap"]="—"; v["DAI_MCap"]="—"
 
-    # ── 10. OI + FUNDING — Kraken Futures (bulut uyumlu) ──
-    try:
-        kr_ticker = requests.get(
-            "https://futures.kraken.com/derivatives/api/v3/tickers",
-            headers=HEADERS, timeout=6).json()
-        btc_perp = next((t for t in kr_ticker["tickers"] if t["symbol"]=="PF_XBTUSD"), None)
-        if btc_perp:
-            v["OI"] = f"{btc_perp.get('openInterest', '—'):,.0f} BTC"
-            fr_val  = btc_perp.get("fundingRate", None)
-            v["FR"] = f"%{float(fr_val)*100:.4f}" if fr_val else "—"
-        else:
-            v["OI"]="—"; v["FR"]="—"
-    except:
-        v["OI"]="—"; v["FR"]="—"
-
-    # Taker B/S — Kraken spot orderbook yaklaşımı (bid/ask spread)
-    try:
-        kr_ob = requests.get(
-            "https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=10",
-            headers=HEADERS, timeout=6).json()
-        pk  = list(kr_ob["result"].keys())[0]
-        top_bid_vol = sum(float(q) for _,q,_ in kr_ob["result"][pk]["bids"])
-        top_ask_vol = sum(float(q) for _,q,_ in kr_ob["result"][pk]["asks"])
-        ratio_t = top_bid_vol / top_ask_vol if top_ask_vol > 0 else 1
-        v["Taker"] = f"{ratio_t:.3f}"
-    except:
-        v["Taker"] = "1.000"
-
-    # ── 11. LONG/SHORT — 3 farklı kaynak dene ────────────
-    ls_done = False
-
-    # Kaynak 1: OKX
-    if not ls_done:
-        try:
-            okx = requests.get(
-                "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio"
-                "?ccy=BTC&period=1H",
-                headers=HEADERS, timeout=6).json()
-            d = okx["data"][0]
-            ls_ratio = float(d["longShortRatio"])
-            long_pct  = ls_ratio / (1 + ls_ratio) * 100
-            short_pct = 100 - long_pct
-            v["LS_Ratio"] = f"{ls_ratio:.3f}"
-            v["Long_Pct"] = f"%{long_pct:.1f}"
-            v["Short_Pct"]= f"%{short_pct:.1f}"
-            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
-            ls_done = True
-        except:
-            pass
-
-    # Kaynak 2: Bitfinex (long/short pozisyon sayısı)
-    if not ls_done:
-        try:
-            bf = requests.get(
-                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:long/hist?limit=1",
-                headers=HEADERS, timeout=6).json()
-            bf_s = requests.get(
-                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:short/hist?limit=1",
-                headers=HEADERS, timeout=6).json()
-            long_v  = abs(float(bf[0][1]))
-            short_v = abs(float(bf_s[0][1]))
-            total_v = long_v + short_v
-            ls_ratio = long_v / short_v if short_v > 0 else 1
-            v["LS_Ratio"] = f"{ls_ratio:.3f}"
-            v["Long_Pct"] = f"%{long_v/total_v*100:.1f}"
-            v["Short_Pct"]= f"%{short_v/total_v*100:.1f}"
-            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
-            ls_done = True
-        except:
-            pass
-
-    # Kaynak 3: Kraken futures book'tan tahmin
-    if not ls_done:
-        try:
-            kr = requests.get(
-                "https://futures.kraken.com/derivatives/api/v3/orderbook?symbol=PF_XBTUSD",
-                headers=HEADERS, timeout=6).json()
-            bid_vol = sum(float(x["qty"]) for x in kr["orderBook"]["bids"][:20])
-            ask_vol = sum(float(x["qty"]) for x in kr["orderBook"]["asks"][:20])
-            ls_ratio = bid_vol / ask_vol if ask_vol > 0 else 1
-            long_pct  = bid_vol / (bid_vol + ask_vol) * 100
-            short_pct = 100 - long_pct
-            v["LS_Ratio"] = f"{ls_ratio:.3f} (tahmin)"
-            v["Long_Pct"] = f"%{long_pct:.1f}"
-            v["Short_Pct"]= f"%{short_pct:.1f}"
-            v["LS_Signal"]= "🟢 Long Ağırlıklı" if ls_ratio > 1 else "🔴 Short Ağırlıklı"
-            ls_done = True
-        except:
-            pass
-
-    if not ls_done:
-        v["LS_Ratio"]="—"; v["Long_Pct"]="—"; v["Short_Pct"]="—"; v["LS_Signal"]="—"
+    # ── 10. OI + FUNDING + L/S → turev_cek()'e taşındı ──
+    v["OI"]="—"; v["FR"]="—"; v["Taker"]="—"
+    v["LS_Ratio"]="—"; v["Long_Pct"]="—"; v["Short_Pct"]="—"; v["LS_Signal"]="—"
 
     # ── 12. FRED ──────────────────────────────────────────
     try:
@@ -347,6 +327,11 @@ st.caption("Kripto · Makro · Forex · Emtia · Haber | Her 5 dakikada güncell
 with st.spinner("Tüm piyasa verileri yükleniyor..."):
     data = veri_motoru()
 
+# Türev veriler cache'siz — her zaman taze
+turev = turev_cek()
+# Ana data dict'e merge et
+data.update(turev)
+
 # SIDEBAR
 st.sidebar.title("📥 Veri Arşivi")
 df_exp=pd.DataFrame([(k,v) for k,v in data.items() if k!="NEWS"],columns=["Metrik","Değer"])
@@ -354,7 +339,16 @@ csv=df_exp.to_csv(index=False,sep=";").encode("utf-8-sig")
 st.sidebar.download_button("💾 CSV İndir",csv,
     file_name=f"SerhatTerminal_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",mime="text/csv")
 st.sidebar.divider()
-st.sidebar.markdown("**Model:** Gemini 2.0 Flash\n\n**Kaynak:** Coinpaprika · Bybit · DeFiLlama · yFinance\n\n**Güncelleme:** Her 5 dk")
+
+# Manuel yenileme butonu
+if st.sidebar.button("🔄 Verileri Şimdi Yenile", use_container_width=True):
+    st.cache_data.clear()
+    st.rerun()
+
+son_guncelleme = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%H:%M:%S")
+st.sidebar.caption(f"⏱️ Son güncelleme: {son_guncelleme}")
+st.sidebar.divider()
+st.sidebar.markdown("**Model:** Gemini 2.0 Flash\n\n**Kaynak:** Coinpaprika · Kraken · DeFiLlama · yFinance\n\n**Cache:** 3 dk | Türev: Canlı")
 
 tab1,tab2,tab3,tab4,tab5=st.tabs(["₿ Kripto","🌍 Makro & Forex","📊 Grafik & Rapor","📰 Haberler","⚙️ Detay"])
 
