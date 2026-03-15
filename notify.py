@@ -385,7 +385,7 @@ BTC Hashrate: {v['Hash']} | BTC Korelasyon SP500: {v['Corr_SP500']} | Altın: {v
 
 ━━━━━━━━ RAPOR YAPISI ━━━━━━━━
 
-**🌅 Sabah Bülteni — {bugun}**
+**🌅 Makro Bülten — {bugun}**
 
 **1️⃣ Makro Ortam & Korelasyon**
 SP500, VIX, DXY, tahvil faizi rakamlarını ver.
