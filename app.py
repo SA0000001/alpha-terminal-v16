@@ -73,38 +73,62 @@ def turev_cek():
     except:
         t["Taker"] = "1.000"
 
-    # Long/Short (Bitfinex → OKX → Kraken fallback)
+    # Long/Short (CoinGlass → OKX → Kraken fallback)
     ls_done = False
-    # Kaynak 1: Bitfinex
+
+    # Kaynak 1: CoinGlass (en güvenilir)
     if not ls_done:
         try:
-            lv = abs(float(requests.get(
-                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:long/hist?limit=1",
-                headers=HEADERS, timeout=6).json()[0][1]))
-            sv = abs(float(requests.get(
-                "https://api-pub.bitfinex.com/v2/stats1/pos.size:1m:tBTCUSD:short/hist?limit=1",
-                headers=HEADERS, timeout=6).json()[0][1]))
-            tot = lv+sv; ratio = lv/sv if sv>0 else 1
-            t["LS_Ratio"] = f"{ratio:.3f}"
-            t["Long_Pct"] = f"%{lv/tot*100:.1f}"
-            t["Short_Pct"]= f"%{sv/tot*100:.1f}"
-            t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
-            ls_done = True
+            cg = requests.get(
+                "https://open-api.coinglass.com/public/v2/long_short_account"
+                "?symbol=BTC&time_type=h1&limit=1",
+                headers=HEADERS, timeout=6).json()
+            if cg.get("data"):
+                d = cg["data"][0]
+                long_pct  = float(d["longRatio"]) * 100
+                short_pct = float(d["shortRatio"]) * 100
+                ratio     = long_pct / short_pct if short_pct > 0 else 1
+                t["LS_Ratio"] = f"{ratio:.3f}"
+                t["Long_Pct"] = f"%{long_pct:.1f}"
+                t["Short_Pct"]= f"%{short_pct:.1f}"
+                t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
+                ls_done = True
         except: pass
+
     # Kaynak 2: OKX
     if not ls_done:
         try:
             okx = requests.get(
-                "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio?ccy=BTC&period=1H",
+                "https://www.okx.com/api/v5/rubik/stat/contracts/long-short-account-ratio"
+                "?ccy=BTC&period=1H",
                 headers=HEADERS, timeout=6).json()
-            d = okx["data"][0]
+            d     = okx["data"][0]
             ratio = float(d["longShortRatio"])
-            lp = ratio/(1+ratio)*100
-            t["LS_Ratio"]=f"{ratio:.3f}"; t["Long_Pct"]=f"%{lp:.1f}"
-            t["Short_Pct"]=f"%{100-lp:.1f}"
-            t["LS_Signal"]="🟢 Long Ağırlıklı" if ratio>1 else "🔴 Short Ağırlıklı"
+            lp    = ratio / (1 + ratio) * 100
+            t["LS_Ratio"] = f"{ratio:.3f}"
+            t["Long_Pct"] = f"%{lp:.1f}"
+            t["Short_Pct"]= f"%{100-lp:.1f}"
+            t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
             ls_done = True
         except: pass
+
+    # Kaynak 3: Gate.io
+    if not ls_done:
+        try:
+            gate = requests.get(
+                "https://api.gateio.ws/api/v4/futures/usdt/long_short_position?contract=BTC_USDT",
+                headers=HEADERS, timeout=6).json()
+            lp    = float(gate[0]["long_liq_size_usd"])
+            sp    = float(gate[0]["short_liq_size_usd"])
+            total = lp + sp
+            ratio = lp / sp if sp > 0 else 1
+            t["LS_Ratio"] = f"{ratio:.3f}"
+            t["Long_Pct"] = f"%{lp/total*100:.1f}"
+            t["Short_Pct"]= f"%{sp/total*100:.1f}"
+            t["LS_Signal"]= "🟢 Long Ağırlıklı" if ratio > 1 else "🔴 Short Ağırlıklı"
+            ls_done = True
+        except: pass
+
     if not ls_done:
         t["LS_Ratio"]="—"; t["Long_Pct"]="—"; t["Short_Pct"]="—"; t["LS_Signal"]="—"
 
