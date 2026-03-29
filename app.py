@@ -8,8 +8,8 @@ import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 load_dotenv()
-FRED_API_KEY       = os.getenv("FRED_API_KEY", "")
-OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
+FRED_API_KEY = st.secrets.get("FRED_API_KEY", os.getenv("FRED_API_KEY", ""))
+OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", os.getenv("OPENROUTER_API_KEY", ""))
 
 if not OPENROUTER_API_KEY:
     st.error("❌ OPENROUTER_API_KEY eksik!")
