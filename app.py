@@ -8,8 +8,8 @@ import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
 load_dotenv()
-FRED_API_KEY = st.secrets.get("FRED_API_KEY", os.getenv("FRED_API_KEY", ""))
-OPENROUTER_API_KEY = st.secrets.get("OPENROUTER_API_KEY", os.getenv("OPENROUTER_API_KEY", ""))
+FRED_API_KEY       = os.getenv("FRED_API_KEY", "")
+OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY", "")
 
 if not OPENROUTER_API_KEY:
     st.error("❌ OPENROUTER_API_KEY eksik!")
@@ -682,7 +682,7 @@ def turev_cek():
 st.markdown("""
 <div class="terminal-header">
     <span class="status-dot"></span>
-    <h1>⚡ SA Finance Alpha Terminal</h1>
+    <h1>⚡ Serhat Alpha Terminal</h1>
     <span class="badge">v17.0</span>
 </div>
 """, unsafe_allow_html=True)
