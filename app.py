@@ -18,7 +18,7 @@ if not OPENROUTER_API_KEY:
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
 
 st.set_page_config(
-    page_title="Serhat Alpha Terminal",
+    page_title="SA Finance Alpha Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
