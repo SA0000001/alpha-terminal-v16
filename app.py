@@ -682,7 +682,7 @@ def turev_cek():
 st.markdown("""
 <div class="terminal-header">
     <span class="status-dot"></span>
-    <h1>⚡ Serhat Alpha Terminal</h1>
+    <h1>⚡ SA Finance Alpha Terminal</h1>
     <span class="badge">v17.0</span>
 </div>
 """, unsafe_allow_html=True)
