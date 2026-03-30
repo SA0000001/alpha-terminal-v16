@@ -288,14 +288,14 @@ ZORUNLU KURALLAR:
 - 5. bolum, TAKVIM listesinden en az bir maddeyi anip olasi piyasa etkisini yorumlasin.
 - 6. bolum, HABERLER listesinden en az bir maddeyi anip BTC/kripto etkisini yorumlasin.
 - Eger takvim veya haber verisi zayifsa bunu acikca belirt ama yine de o bolumu yaz.
-- Long, short ve bekle senaryolarinda net seviye ya da kosul ver.
+- Long, short ve bekle senaryolarinda net seviye ve kosul ver.
 - Zaman ufuklarini karistirma: 7 gunluk kiyas sadece 7g verilerle yapilsin; 24 saatlik momentum yorumu sadece 24s verilerle yapilsin.
 - Altcoin relatif guc analizinde BTC ile altcoinleri ayni periyotta karsilastir. BTC 7g kullaniliyorsa ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin de 7g verileri kullan.
 - Eger 24s ile 7g farkli hikaye anlatiyorsa bunu acikca ayir: once 7g trendi, sonra 24s kisa vadeli momentum.
 - Haftalik altcoin yorumu yazarken yalnizca ALTCOIN_7G satirini kullan. ALTCOIN_24S satiri haftalik sonuc cikarmak icin kullanilamaz.
 - 7 gunluk relatif guc cumlesinde ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin yazilan her yuzde mutlaka ilgili 7g veri satirindaki sayiyla ayni olmali.
 - VIX ve M2 icin haftalik, onceki hafta, degisim hizi veya yuzdesel periyot farki uydurma. Elinde sadece mevcut seviye varsa yalnizca mevcut seviyeyi yorumla.
-- VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen M2 degeri kullanilabilir. Gecen hafta, onceki ay veya trend hizi uydurulamaz.
+- VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen M2 degeri ve varsa gunluk degisim kullanilabilir. Gecen hafta, onceki ay veya trend hizi uydurulamaz.
 - TOTAL, TOTAL2, TOTAL3 ve OTHERS tanimlarini yukaridaki gibi kullan; TOTAL3'u asla ilk 10 disi olarak anlatma. OTHERS'i asla BTC ve ETH harici toplam piyasa degeri olarak anlatma.
 - Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
 - Tüm veri kategorilerini mutlaka kullan.
