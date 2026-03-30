@@ -264,8 +264,10 @@ TARIH: {bugun}
 BTC: {v.get('BTC_P','—')} | 24s {v.get('BTC_C','—')} | 7g {v.get('BTC_7D','—')} | Hacim {v.get('Vol_24h','—')}
 DOMINANCE: BTC {v.get('Dom','—')} | ETH {v.get('ETH_Dom','—')}
 MARKET CAP BREADTH: TOTAL {v.get('TOTAL_CAP','—')} | TOTAL2 {v.get('TOTAL2_CAP','—')} | TOTAL3 {v.get('TOTAL3_CAP','—')} | OTHERS {v.get('OTHERS_CAP','—')} | Kaynak {v.get('TOTAL_CAP_SOURCE','—')}
+TANIMLAR: TOTAL = toplam kripto piyasa degeri. TOTAL2 = BTC haric toplam piyasa degeri. TOTAL3 = BTC ve ETH haric toplam piyasa degeri. OTHERS = ilk 10 haric piyasa degeri.
 ETF: Tarih {v.get('ETF_FLOW_DATE','—')} | Toplam {v.get('ETF_FLOW_TOTAL','—')} | IBIT {v.get('ETF_FLOW_IBIT','—')} | FBTC {v.get('ETF_FLOW_FBTC','—')} | GBTC {v.get('ETF_FLOW_GBTC','—')}
 STABLECOINS: Toplam {v.get('Total_Stable','—')} | Stable.C.D {v.get('STABLE_C_D','—')} | USDT.D {v.get('USDT_D','—')} | USDT kaynak {v.get('USDT_D_SOURCE','—')} | USDT stable dominance {v.get('USDT_Dom_Stable','—')}
+STABLE TANIMLARI: Stable.C.D = toplam stablecoin market cap / toplam kripto market cap. USDT.D = USDT market cap / toplam kripto market cap. USDT stable dominance = USDT market cap / toplam stablecoin market cap.
 ORDER BOOK: {v.get('ORDERBOOK_SIGNAL','—')} | Kraken {v.get('Sup_Wall','—')} / {v.get('Res_Wall','—')} | OKX {v.get('OKX_Sup_Wall','—')} / {v.get('OKX_Res_Wall','—')} | KuCoin {v.get('KUCOIN_Sup_Wall','—')} / {v.get('KUCOIN_Res_Wall','—')} | Gate.io {v.get('GATE_Sup_Wall','—')} / {v.get('GATE_Res_Wall','—')} | Coinbase {v.get('COINBASE_Sup_Wall','—')} / {v.get('COINBASE_Res_Wall','—')}
 TUREV: OI {v.get('OI','—')} | Funding {v.get('FR','—')} | Taker {v.get('Taker','—')} | L/S {v.get('LS_Ratio','—')} ({v.get('LS_Signal','—')})
 MAKRO: FED {v.get('FED','—')} | M2 {v.get('M2','—')} | US10Y {v.get('US10Y','—')} | DXY {v.get('DXY','—')} | VIX {v.get('VIX','—')}
@@ -292,6 +294,9 @@ ZORUNLU KURALLAR:
 - Eger 24s ile 7g farkli hikaye anlatiyorsa bunu acikca ayir: once 7g trendi, sonra 24s kisa vadeli momentum.
 - Haftalik altcoin yorumu yazarken yalnizca ALTCOIN_7G satirini kullan. ALTCOIN_24S satiri haftalik sonuc cikarmak icin kullanilamaz.
 - 7 gunluk relatif guc cumlesinde ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin yazilan her yuzde mutlaka ilgili 7g veri satirindaki sayiyla ayni olmali.
+- VIX ve M2 icin haftalik, onceki hafta, degisim hizi veya yuzdesel periyot farki uydurma. Elinde sadece mevcut seviye varsa yalnizca mevcut seviyeyi yorumla.
+- VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen M2 degeri kullanilabilir. Gecen hafta, onceki ay veya trend hizi uydurulamaz.
+- TOTAL, TOTAL2, TOTAL3 ve OTHERS tanimlarini yukaridaki gibi kullan; TOTAL3'u asla ilk 10 disi olarak anlatma. OTHERS'i asla BTC ve ETH harici toplam piyasa degeri olarak anlatma.
 - Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
 - Tüm veri kategorilerini mutlaka kullan.
 
