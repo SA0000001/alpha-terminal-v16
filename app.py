@@ -728,7 +728,8 @@ def build_orderbook_signal(data):
     exchanges = [
         ("Kraken", ""),
         ("OKX", "OKX"),
-        ("Bybit", "BYBIT"),
+        ("KuCoin", "KUCOIN"),
+        ("Gate.io", "GATE"),
         ("Coinbase", "COINBASE"),
     ]
     snapshots = []
@@ -1126,7 +1127,7 @@ def veri_motoru():
     except:
         v["Corr_SP500"]="—"; v["Corr_Gold"]="—"
 
-    # 9. Balina duvarları (Kraken + OKX + Bybit + Coinbase)
+    # 9. Balina duvarları (Kraken + OKX + KuCoin + Gate.io + Coinbase)
     try:
         ob = fetch_json_without_env_proxy("https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=500", timeout=8)
         pk  = list(ob["result"].keys())[0]
@@ -1148,14 +1149,23 @@ def veri_motoru():
         clear_wall_levels(v, "OKX")
 
     try:
-        bybit = fetch_json_without_env_proxy("https://api.bybit.com/v5/market/orderbook?category=spot&symbol=BTCUSDT&limit=200", timeout=8)
-        bybit_book = bybit["result"]
-        bids = [(float(p), float(q)) for p, q, *_ in bybit_book["b"]]
-        asks = [(float(p), float(q)) for p, q, *_ in bybit_book["a"]]
-        bybit_levels = extract_wall_levels(bids, asks)
-        save_wall_levels(v, "BYBIT", bybit_levels)
+        kucoin = fetch_json_without_env_proxy("https://api.kucoin.com/api/v1/market/orderbook/level2_100?symbol=BTC-USDT", timeout=8)
+        kucoin_book = kucoin["data"]
+        bids = [(float(p), float(q)) for p, q, *_ in kucoin_book["bids"]]
+        asks = [(float(p), float(q)) for p, q, *_ in kucoin_book["asks"]]
+        kucoin_levels = extract_wall_levels(bids, asks)
+        save_wall_levels(v, "KUCOIN", kucoin_levels)
     except:
-        clear_wall_levels(v, "BYBIT")
+        clear_wall_levels(v, "KUCOIN")
+
+    try:
+        gate = fetch_json_without_env_proxy("https://api.gateio.ws/api/v4/spot/order_book?currency_pair=BTC_USDT&limit=200&with_id=true", timeout=8)
+        bids = [(float(p), float(q)) for p, q, *_ in gate["bids"]]
+        asks = [(float(p), float(q)) for p, q, *_ in gate["asks"]]
+        gate_levels = extract_wall_levels(bids, asks)
+        save_wall_levels(v, "GATE", gate_levels)
+    except:
+        clear_wall_levels(v, "GATE")
 
     try:
         coinbase = fetch_json_without_env_proxy("https://api.exchange.coinbase.com/products/BTC-USD/book?level=2", timeout=8)
@@ -1171,7 +1181,7 @@ def veri_motoru():
     v["ORDERBOOK_SIGNAL_DETAIL"] = orderbook_signal["detail"]
     v["ORDERBOOK_SIGNAL_BADGE"] = orderbook_signal["badge"]
     v["ORDERBOOK_SIGNAL_CLASS"] = orderbook_signal["class"]
-    v["ORDERBOOK_SOURCES"] = "Kraken · OKX · Bybit · Coinbase"
+    v["ORDERBOOK_SOURCES"] = "Kraken · OKX · KuCoin · Gate.io · Coinbase"
 
     # 10. Stablecoin (DeFiLlama)
     try:
@@ -1456,7 +1466,7 @@ with st.sidebar:
     st.divider()
     st.markdown("""
 **Veri Kaynakları:**  
-`Coinpaprika` · `Kraken` · `OKX` · `Bybit` · `Coinbase`  
+`Coinpaprika` · `Kraken` · `OKX` · `KuCoin` · `Gate.io` · `Coinbase`  
 `DeFiLlama` · `yFinance` · `TradingView`  
 `FRED` · `CoinDesk`
 
@@ -1563,7 +1573,7 @@ with tab1:
         )
     with col_orderbook:
         render_info_panel(
-            data.get("ORDERBOOK_SOURCES", "Kraken · OKX · Bybit · Coinbase"),
+            data.get("ORDERBOOK_SOURCES", "Kraken · OKX · KuCoin · Gate.io · Coinbase"),
             "Order Book Seviyeleri",
             [
                 ("Birlesik sinyal", data.get("ORDERBOOK_SIGNAL", "—")),
@@ -1571,8 +1581,10 @@ with tab1:
                 ("Kraken direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
                 ("OKX destek", f"{data.get('OKX_Sup_Wall', '—')} · {data.get('OKX_Sup_Vol', '—')}"),
                 ("OKX direnç", f"{data.get('OKX_Res_Wall', '—')} · {data.get('OKX_Res_Vol', '—')}"),
-                ("Bybit destek", f"{data.get('BYBIT_Sup_Wall', '—')} · {data.get('BYBIT_Sup_Vol', '—')}"),
-                ("Bybit direnç", f"{data.get('BYBIT_Res_Wall', '—')} · {data.get('BYBIT_Res_Vol', '—')}"),
+                ("KuCoin destek", f"{data.get('KUCOIN_Sup_Wall', '—')} · {data.get('KUCOIN_Sup_Vol', '—')}"),
+                ("KuCoin direnç", f"{data.get('KUCOIN_Res_Wall', '—')} · {data.get('KUCOIN_Res_Vol', '—')}"),
+                ("Gate.io destek", f"{data.get('GATE_Sup_Wall', '—')} · {data.get('GATE_Sup_Vol', '—')}"),
+                ("Gate.io direnç", f"{data.get('GATE_Res_Wall', '—')} · {data.get('GATE_Res_Vol', '—')}"),
                 ("Coinbase destek", f"{data.get('COINBASE_Sup_Wall', '—')} · {data.get('COINBASE_Sup_Vol', '—')}"),
                 ("Coinbase direnç", f"{data.get('COINBASE_Res_Wall', '—')} · {data.get('COINBASE_Res_Vol', '—')}"),
             ],
@@ -1609,7 +1621,6 @@ with tab1:
                 ("USDC market cap", data.get("USDC_MCap", "—")),
                 ("DAI market cap", data.get("DAI_MCap", "—")),
                 ("USDT.D", data.get("USDT_D", "—")),
-                ("USDT.D kaynak", data.get("USDT_D_SOURCE", "—")),
                 ("USDT stable dominance", data.get("USDT_Dom_Stable", "—")),
             ],
             badge_text=brief["liquidity"]["title"],
@@ -1790,11 +1801,12 @@ Taker Buy/Sell: {data.get('Taker','—')}
 Long/Short Oranı: {data.get('LS_Ratio','—')} → {data.get('LS_Signal','—')}
 Long %: {data.get('Long_Pct','—')} | Short %: {data.get('Short_Pct','—')}
 
-📌 BALİNA DUVARLARI (Kraken + OKX + Bybit + Coinbase):
+📌 BALİNA DUVARLARI (Kraken + OKX + KuCoin + Gate.io + Coinbase):
 Birleşik sinyal: {data.get('ORDERBOOK_SIGNAL','—')} | Detay: {data.get('ORDERBOOK_SIGNAL_DETAIL','—')}
 Kraken → 🟢 Destek: {data.get('Sup_Wall','—')} — {data.get('Sup_Vol','—')} | 🔴 Direnç: {data.get('Res_Wall','—')} — {data.get('Res_Vol','—')} | Durum: {data.get('Wall_Status','—')}
 OKX → 🟢 Destek: {data.get('OKX_Sup_Wall','—')} — {data.get('OKX_Sup_Vol','—')} | 🔴 Direnç: {data.get('OKX_Res_Wall','—')} — {data.get('OKX_Res_Vol','—')} | Durum: {data.get('OKX_Wall_Status','—')}
-Bybit → 🟢 Destek: {data.get('BYBIT_Sup_Wall','—')} — {data.get('BYBIT_Sup_Vol','—')} | 🔴 Direnç: {data.get('BYBIT_Res_Wall','—')} — {data.get('BYBIT_Res_Vol','—')} | Durum: {data.get('BYBIT_Wall_Status','—')}
+KuCoin → 🟢 Destek: {data.get('KUCOIN_Sup_Wall','—')} — {data.get('KUCOIN_Sup_Vol','—')} | 🔴 Direnç: {data.get('KUCOIN_Res_Wall','—')} — {data.get('KUCOIN_Res_Vol','—')} | Durum: {data.get('KUCOIN_Wall_Status','—')}
+Gate.io → 🟢 Destek: {data.get('GATE_Sup_Wall','—')} — {data.get('GATE_Sup_Vol','—')} | 🔴 Direnç: {data.get('GATE_Res_Wall','—')} — {data.get('GATE_Res_Vol','—')} | Durum: {data.get('GATE_Wall_Status','—')}
 Coinbase → 🟢 Destek: {data.get('COINBASE_Sup_Wall','—')} — {data.get('COINBASE_Sup_Vol','—')} | 🔴 Direnç: {data.get('COINBASE_Res_Wall','—')} — {data.get('COINBASE_Res_Vol','—')} | Durum: {data.get('COINBASE_Wall_Status','—')}
 
 📌 KORKU & DUYGU:
@@ -1808,7 +1820,7 @@ BTCW: {data.get('ETF_FLOW_BTCW','—')} | GBTC: {data.get('ETF_FLOW_GBTC','—')
 
 📌 STABLECOİN LİKİDİTESİ:
 Toplam: {data.get('Total_Stable','—')} | USDT: {data.get('USDT_MCap','—')} | USDC: {data.get('USDC_MCap','—')} | DAI: {data.get('DAI_MCap','—')}
-USDT.D (Piyasa %): {data.get('USDT_D','—')} | Kaynak: {data.get('USDT_D_SOURCE','—')} | USDT Dom (Stable içi): {data.get('USDT_Dom_Stable','—')}
+USDT.D (Piyasa %): {data.get('USDT_D','—')} | USDT Dom (Stable içi): {data.get('USDT_Dom_Stable','—')}
 
 📌 ON-CHAIN:
 Hashrate: {data.get('Hash','—')} | Aktif Adres (est): {data.get('Active','—')}
@@ -1870,15 +1882,15 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 - Funding Rate {data.get('FR','—')}: short squeeze mu long liquidation mu daha olası?
 - L/S {data.get('LS_Ratio','—')} ({data.get('LS_Signal','—')}): kalabalık taraf nerede, squeeze ihtimali?
 - Taker B/S {data.get('Taker','—')}: piyasaya agresif alıcı mı satıcı mı hakim?
-- Birleşik sinyal {data.get('ORDERBOOK_SIGNAL','—')}: Kraken, OKX, Bybit ve Coinbase seviyeleri aynı yöne bakıyor mu?
-- Kraken destek {data.get('Sup_Wall','—')} ({data.get('Sup_Vol','—')}), OKX destek {data.get('OKX_Sup_Wall','—')} ({data.get('OKX_Sup_Vol','—')}), Bybit destek {data.get('BYBIT_Sup_Wall','—')} ({data.get('BYBIT_Sup_Vol','—')}) ve Coinbase destek {data.get('COINBASE_Sup_Wall','—')} ({data.get('COINBASE_Sup_Vol','—')}): ortak destek gerçekten güçlü mü?
-- Kraken direnç {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}), OKX direnç {data.get('OKX_Res_Wall','—')} ({data.get('OKX_Res_Vol','—')}), Bybit direnç {data.get('BYBIT_Res_Wall','—')} ({data.get('BYBIT_Res_Vol','—')}) ve Coinbase direnç {data.get('COINBASE_Res_Wall','—')} ({data.get('COINBASE_Res_Vol','—')}): kırılabilir mi?
+- Birleşik sinyal {data.get('ORDERBOOK_SIGNAL','—')}: Kraken, OKX, KuCoin, Gate.io ve Coinbase seviyeleri aynı yöne bakıyor mu?
+- Kraken destek {data.get('Sup_Wall','—')} ({data.get('Sup_Vol','—')}), OKX destek {data.get('OKX_Sup_Wall','—')} ({data.get('OKX_Sup_Vol','—')}), KuCoin destek {data.get('KUCOIN_Sup_Wall','—')} ({data.get('KUCOIN_Sup_Vol','—')}), Gate.io destek {data.get('GATE_Sup_Wall','—')} ({data.get('GATE_Sup_Vol','—')}) ve Coinbase destek {data.get('COINBASE_Sup_Wall','—')} ({data.get('COINBASE_Sup_Vol','—')}): ortak destek gerçekten güçlü mü?
+- Kraken direnç {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}), OKX direnç {data.get('OKX_Res_Wall','—')} ({data.get('OKX_Res_Vol','—')}), KuCoin direnç {data.get('KUCOIN_Res_Wall','—')} ({data.get('KUCOIN_Res_Vol','—')}), Gate.io direnç {data.get('GATE_Res_Wall','—')} ({data.get('GATE_Res_Vol','—')}) ve Coinbase direnç {data.get('COINBASE_Res_Wall','—')} ({data.get('COINBASE_Res_Vol','—')}): kırılabilir mi?
 
 **🏦 3. KURUMSAL AKIŞ & LİKİDİTE ANALİZİ**
 - Günlük ETF netflow {data.get('ETF_FLOW_TOTAL','—')} ({data.get('ETF_FLOW_DATE','—')}): kurumsal para girişi/çıkışı trendi ne?
 - ETF bazlı akış dağılımı BTC fiyatıyla örtüşüyor mu?
 - Stablecoin toplam {data.get('Total_Stable','—')}: piyasaya hazır "barut" var mı?
-- USDT.D {data.get('USDT_D','—')} (kaynak: {data.get('USDT_D_SOURCE','—')}): yüksek mi alçak mı, altcoin sezonu sinyali veriyor mu?
+- USDT.D {data.get('USDT_D','—')}: yüksek mi alçak mı, altcoin sezonu sinyali veriyor mu?
 - Likidite analizi: para kripto'ya mı giriyor, stablecoin'de mi bekliyor?
 
 **🪙 4. ALTCOİN & DOMAİNANCE ANALİZİ**
@@ -1973,9 +1985,12 @@ with tab5:
             ("Birleşik Detay","ORDERBOOK_SIGNAL_DETAIL"),("Kaynaklar","ORDERBOOK_SOURCES"),
             ("OKX Destek","OKX_Sup_Wall"),("OKX Destek Hacim","OKX_Sup_Vol"),
             ("OKX Direnç","OKX_Res_Wall"),("OKX Direnç Hacim","OKX_Res_Vol"),
-            ("OKX Durum","OKX_Wall_Status"),("Bybit Destek","BYBIT_Sup_Wall"),
-            ("Bybit Destek Hacim","BYBIT_Sup_Vol"),("Bybit Direnç","BYBIT_Res_Wall"),
-            ("Bybit Direnç Hacim","BYBIT_Res_Vol"),("Bybit Durum","BYBIT_Wall_Status"),
+            ("OKX Durum","OKX_Wall_Status"),("KuCoin Destek","KUCOIN_Sup_Wall"),
+            ("KuCoin Destek Hacim","KUCOIN_Sup_Vol"),("KuCoin Direnç","KUCOIN_Res_Wall"),
+            ("KuCoin Direnç Hacim","KUCOIN_Res_Vol"),("KuCoin Durum","KUCOIN_Wall_Status"),
+            ("Gate.io Destek","GATE_Sup_Wall"),("Gate.io Destek Hacim","GATE_Sup_Vol"),
+            ("Gate.io Direnç","GATE_Res_Wall"),("Gate.io Direnç Hacim","GATE_Res_Vol"),
+            ("Gate.io Durum","GATE_Wall_Status"),
             ("Coinbase Destek","COINBASE_Sup_Wall"),("Coinbase Destek Hacim","COINBASE_Sup_Vol"),
             ("Coinbase Direnç","COINBASE_Res_Wall"),("Coinbase Direnç Hacim","COINBASE_Res_Vol"),
             ("Coinbase Durum","COINBASE_Wall_Status"),
@@ -1990,7 +2005,7 @@ with tab5:
         "💵 Stablecoin & On-Chain": [
             ("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),
             ("USDC","USDC_MCap"),("DAI","DAI_MCap"),
-            ("USDT.D","USDT_D"),("USDT.D Kaynak","USDT_D_SOURCE"),("USDT Dom Stable","USDT_Dom_Stable"),
+            ("USDT.D","USDT_D"),("USDT Dom Stable","USDT_Dom_Stable"),
             ("Hashrate","Hash"),("Aktif Adres (est)","Active"),
         ],
         "🌍 Makro & Para Politikası": [
