@@ -1088,7 +1088,7 @@ st.markdown(
     <div class="terminal-header">
         <div>
             <div class="hero-kicker">Digital Asset Intelligence</div>
-            <h1>⚡ Serhat Alpha Terminal</h1>
+            <h1>⚡ SA Finance Alpha Terminal</h1>
             <div class="header-subtitle">
                 Kripto, makro ve likidite verilerini tek ekranda toplayan daha net bir karar paneli.
                 Önce kısa özeti gör, sonra sekmelerde detaya in.
