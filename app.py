@@ -643,6 +643,61 @@ def parse_latest_etf_flow_row(flow_text):
     return None
 
 
+def extract_wall_levels(bids, asks, noise=250, bucket_size=100):
+    if not bids or not asks:
+        raise ValueError("order book is empty")
+
+    current_price = bids[0][0]
+    filtered_bids = [(p, q) for p, q in bids if p < current_price - noise] or bids[len(bids) // 2 :]
+    filtered_asks = [(p, q) for p, q in asks if p > current_price + noise] or asks[len(asks) // 2 :]
+
+    def strongest_bucket(levels, bucket_fn):
+        buckets = {}
+        for price, qty in levels:
+            bucket_key = bucket_fn(price)
+            buckets[bucket_key] = buckets.get(bucket_key, 0.0) + qty
+        return max(buckets.items(), key=lambda item: item[1])
+
+    support_price, support_volume = strongest_bucket(filtered_bids, lambda price: int(price / bucket_size) * bucket_size)
+    resistance_price, resistance_volume = strongest_bucket(filtered_asks, lambda price: int((price / bucket_size) + 1) * bucket_size)
+
+    distance_support = current_price - support_price
+    distance_resistance = resistance_price - current_price
+    if distance_resistance < distance_support:
+        status = "🔴 Dirence Yakın"
+    elif distance_support < distance_resistance:
+        status = "🟢 Desteğe Yakın"
+    else:
+        status = "⚖️ Kanal Ortası"
+
+    return {
+        "current_price": current_price,
+        "support_price": support_price,
+        "support_volume": support_volume,
+        "resistance_price": resistance_price,
+        "resistance_volume": resistance_volume,
+        "status": status,
+    }
+
+
+def fetch_tradingview_usdt_d():
+    for url in [
+        "https://r.jina.ai/http://www.tradingview.com/symbols/USDT.D/?exchange=CRYPTOCAP",
+        "https://r.jina.ai/http://www.tradingview.com/symbols/USDT.D/",
+    ]:
+        try:
+            tv_text = fetch_text_without_env_proxy(url, timeout=20)
+            match = re.search(r"Market open\s+([0-9]+(?:\.[0-9]+)?)%R", tv_text)
+            if not match:
+                match = re.search(r"USDT\.D Market open\s+([0-9]+(?:\.[0-9]+)?)\sR%", tv_text)
+            if match:
+                return f"%{float(match.group(1)):.2f}", "TradingView"
+        except:
+            pass
+
+    return None, None
+
+
 def render_info_panel(kicker: str, title: str, rows, badge_text: str = "", badge_kind: str = "signal-neutral", copy: str = ""):
     rows_html = "".join(
         f"<div class='panel-row'><span>{label}</span><strong>{value}</strong></div>"
@@ -675,6 +730,7 @@ def build_market_brief(data):
     etf_flow_date = data.get("ETF_FLOW_DATE", "—")
     ls_signal = data.get("LS_Signal", "—")
     wall_status = data.get("Wall_Status", "—")
+    binance_wall_status = data.get("BN_Wall_Status", "—")
 
     if btc_change is not None and btc_change >= 2:
         regime = {
@@ -751,7 +807,23 @@ def build_market_brief(data):
             "class": "signal-neutral",
         }
 
-    if "Dirence" in wall_status:
+    if "Dirence" in wall_status and "Dirence" in binance_wall_status:
+        focus = {
+            "label": "Odak Seviye",
+            "title": "Çift Borsa Direnç",
+            "detail": f"Kraken {data.get('Res_Wall', '—')} · Binance {data.get('BN_Res_Wall', '—')}",
+            "badge": "RESISTANCE",
+            "class": "signal-short",
+        }
+    elif "Desteğe" in wall_status and "Desteğe" in binance_wall_status:
+        focus = {
+            "label": "Odak Seviye",
+            "title": "Çift Borsa Destek",
+            "detail": f"Kraken {data.get('Sup_Wall', '—')} · Binance {data.get('BN_Sup_Wall', '—')}",
+            "badge": "SUPPORT",
+            "class": "signal-long",
+        }
+    elif "Dirence" in wall_status:
         focus = {
             "label": "Odak Seviye",
             "title": "Direnç Testi",
@@ -950,32 +1022,37 @@ def veri_motoru():
     except:
         v["Corr_SP500"]="—"; v["Corr_Gold"]="—"
 
-    # 9. Balina duvarları (Kraken)
+    # 9. Balina duvarları (Kraken + Binance)
     try:
         ob  = requests.get("https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=500", timeout=8).json()
         pk  = list(ob["result"].keys())[0]
         bids= [(float(p),float(q)) for p,q,_ in ob["result"][pk]["bids"]]
         asks= [(float(p),float(q)) for p,q,_ in ob["result"][pk]["asks"]]
-        cur = bids[0][0]; noise=250; bs=100
-        fb  = [(p,q) for p,q in bids if p<cur-noise] or bids[len(bids)//2:]
-        fa  = [(p,q) for p,q in asks if p>cur+noise] or asks[len(asks)//2:]
-        def bkt(data, fn):
-            d={}
-            for p,q in data: k=fn(p); d[k]=d.get(k,0)+q
-            return max(d.items(), key=lambda x: x[1])
-        sw,sv = bkt(fb, lambda p: int(p/bs)*bs)
-        rw,rv = bkt(fa, lambda p: int((p/bs)+1)*bs)
-        v["Sup_Wall"]    = f"${sw:,}"
-        v["Sup_Vol"]     = f"{int(sv):,} BTC"
-        v["Res_Wall"]    = f"${rw:,}"
-        v["Res_Vol"]     = f"{int(rv):,} BTC"
-        ds = cur - sw; dr = rw - cur
-        v["Wall_Status"] = ("🔴 Dirence Yakın" if dr < ds else
-                            ("🟢 Desteğe Yakın" if ds < dr else "⚖️ Kanal Ortası"))
-        v["BTC_Now"]     = f"${cur:,.0f}"
+        kraken_levels = extract_wall_levels(bids, asks)
+        v["Sup_Wall"]    = f"${kraken_levels['support_price']:,}"
+        v["Sup_Vol"]     = f"{int(kraken_levels['support_volume']):,} BTC"
+        v["Res_Wall"]    = f"${kraken_levels['resistance_price']:,}"
+        v["Res_Vol"]     = f"{int(kraken_levels['resistance_volume']):,} BTC"
+        v["Wall_Status"] = kraken_levels["status"]
+        v["BTC_Now"]     = f"${kraken_levels['current_price']:,.0f}"
     except:
         v["Sup_Wall"]="—"; v["Sup_Vol"]="—"; v["Res_Wall"]="—"; v["Res_Vol"]="—"
         v["Wall_Status"]="—"; v["BTC_Now"]="—"
+
+    try:
+        bn = requests.get("https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=5000", timeout=8).json()
+        bids = [(float(p), float(q)) for p, q in bn["bids"]]
+        asks = [(float(p), float(q)) for p, q in bn["asks"]]
+        binance_levels = extract_wall_levels(bids, asks)
+        v["BN_Sup_Wall"] = f"${binance_levels['support_price']:,}"
+        v["BN_Sup_Vol"] = f"{int(binance_levels['support_volume']):,} BTC"
+        v["BN_Res_Wall"] = f"${binance_levels['resistance_price']:,}"
+        v["BN_Res_Vol"] = f"{int(binance_levels['resistance_volume']):,} BTC"
+        v["BN_Wall_Status"] = binance_levels["status"]
+        v["BN_BTC_Now"] = f"${binance_levels['current_price']:,.0f}"
+    except:
+        v["BN_Sup_Wall"] = "—"; v["BN_Sup_Vol"] = "—"; v["BN_Res_Wall"] = "—"; v["BN_Res_Vol"] = "—"
+        v["BN_Wall_Status"] = "—"; v["BN_BTC_Now"] = "—"
 
     # 10. Stablecoin (DeFiLlama)
     try:
@@ -995,21 +1072,32 @@ def veri_motoru():
         v["Total_Stable"]="—"; v["USDT_MCap"]="—"; v["USDC_MCap"]="—"
         v["DAI_MCap"]="—"; v["USDT_Dom_Stable"]="—"
 
-    # USDT.D — CoinGecko
+    # USDT.D — TradingView uyumlu kaynak, fallback CoinGecko / Coinpaprika
     try:
-        cg_g = requests.get("https://api.coingecko.com/api/v3/global",
-                            headers=HEADERS, timeout=6).json()["data"]
-        v["USDT_D"] = f"%{cg_g['market_cap_percentage']['usdt']:.2f}"
+        usdt_d_value, usdt_d_source = fetch_tradingview_usdt_d()
+        if usdt_d_value:
+            v["USDT_D"] = usdt_d_value
+            v["USDT_D_SOURCE"] = usdt_d_source
+        else:
+            raise ValueError
     except:
         try:
-            cg2 = requests.get("https://api.coinpaprika.com/v1/global",
-                               headers=HEADERS, timeout=6).json()
-            total_mc = cg2["market_cap_usd"]
-            ur = requests.get("https://api.coinpaprika.com/v1/tickers/usdt-tether",
-                              headers=HEADERS, timeout=6).json()
-            v["USDT_D"] = f"%{ur['quotes']['USD']['market_cap']/total_mc*100:.2f}"
+            cg_g = requests.get("https://api.coingecko.com/api/v3/global",
+                                headers=HEADERS, timeout=6).json()["data"]
+            v["USDT_D"] = f"%{cg_g['market_cap_percentage']['usdt']:.2f}"
+            v["USDT_D_SOURCE"] = "CoinGecko"
         except:
-            v["USDT_D"] = "—"
+            try:
+                cg2 = requests.get("https://api.coinpaprika.com/v1/global",
+                                   headers=HEADERS, timeout=6).json()
+                total_mc = cg2["market_cap_usd"]
+                ur = requests.get("https://api.coinpaprika.com/v1/tickers/usdt-tether",
+                                  headers=HEADERS, timeout=6).json()
+                v["USDT_D"] = f"%{ur['quotes']['USD']['market_cap']/total_mc*100:.2f}"
+                v["USDT_D_SOURCE"] = "Coinpaprika"
+            except:
+                v["USDT_D"] = "—"
+                v["USDT_D_SOURCE"] = "—"
 
     # OI + FR + L/S (placeholder — turev_cek() ile doldurulacak)
     v["OI"]="—"; v["FR"]="—"; v["Taker"]="—"
@@ -1249,8 +1337,8 @@ with st.sidebar:
     st.divider()
     st.markdown("""
 **Veri Kaynakları:**  
-`Coinpaprika` · `Kraken`  
-`DeFiLlama` · `yFinance`  
+`Coinpaprika` · `Kraken` · `Binance`  
+`DeFiLlama` · `yFinance` · `TradingView`  
 `OKX` · `FRED` · `CoinDesk`
 
 **Model:** `Gemini 2.5 Flash`  
@@ -1359,17 +1447,19 @@ with tab1:
         )
     with col_orderbook:
         render_info_panel(
-            "Kraken Walls",
+            "Kraken + Binance",
             "Order Book Seviyeleri",
             [
-                ("Tahta durumu", wall_status),
-                ("Mevcut fiyat", data.get("BTC_Now", "—")),
-                ("Ana destek", f"{data.get('Sup_Wall', '—')} · {data.get('Sup_Vol', '—')}"),
-                ("Ana direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
+                ("Kraken durum", wall_status),
+                ("Kraken destek", f"{data.get('Sup_Wall', '—')} · {data.get('Sup_Vol', '—')}"),
+                ("Kraken direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
+                ("Binance durum", data.get("BN_Wall_Status", "—")),
+                ("Binance destek", f"{data.get('BN_Sup_Wall', '—')} · {data.get('BN_Sup_Vol', '—')}"),
+                ("Binance direnç", f"{data.get('BN_Res_Wall', '—')} · {data.get('BN_Res_Vol', '—')}"),
             ],
             badge_text=brief["focus"]["title"],
-            badge_kind=ws_cls,
-            copy="Destek ve direnç duvarları karar alanına dönüştürüldü; fiyatın hangi tarafa yakın olduğu netleşiyor.",
+            badge_kind=brief["focus"]["class"],
+            copy="Kraken ve Binance derinliği aynı panelde toplandı; iki borsada benzer duvar oluşuyorsa destek/direnç daha güçlü okunur.",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1400,6 +1490,7 @@ with tab1:
                 ("USDC market cap", data.get("USDC_MCap", "—")),
                 ("DAI market cap", data.get("DAI_MCap", "—")),
                 ("USDT.D", data.get("USDT_D", "—")),
+                ("USDT.D kaynak", data.get("USDT_D_SOURCE", "—")),
                 ("USDT stable dominance", data.get("USDT_Dom_Stable", "—")),
             ],
             badge_text=brief["liquidity"]["title"],
@@ -1580,10 +1671,9 @@ Taker Buy/Sell: {data.get('Taker','—')}
 Long/Short Oranı: {data.get('LS_Ratio','—')} → {data.get('LS_Signal','—')}
 Long %: {data.get('Long_Pct','—')} | Short %: {data.get('Short_Pct','—')}
 
-📌 BALİNA DUVARLARI (Kraken Order Book):
-🟢 Destek: {data.get('Sup_Wall','—')} — {data.get('Sup_Vol','—')} bekliyor
-🔴 Direnç: {data.get('Res_Wall','—')} — {data.get('Res_Vol','—')} bekliyor
-Tahta Durumu: {data.get('Wall_Status','—')}
+📌 BALİNA DUVARLARI (Kraken + Binance Order Book):
+Kraken → 🟢 Destek: {data.get('Sup_Wall','—')} — {data.get('Sup_Vol','—')} | 🔴 Direnç: {data.get('Res_Wall','—')} — {data.get('Res_Vol','—')} | Durum: {data.get('Wall_Status','—')}
+Binance → 🟢 Destek: {data.get('BN_Sup_Wall','—')} — {data.get('BN_Sup_Vol','—')} | 🔴 Direnç: {data.get('BN_Res_Wall','—')} — {data.get('BN_Res_Vol','—')} | Durum: {data.get('BN_Wall_Status','—')}
 
 📌 KORKU & DUYGU:
 Fear & Greed Index: {data.get('FNG','—')} (dün: {data.get('FNG_PREV','—')})
@@ -1596,7 +1686,7 @@ BTCW: {data.get('ETF_FLOW_BTCW','—')} | GBTC: {data.get('ETF_FLOW_GBTC','—')
 
 📌 STABLECOİN LİKİDİTESİ:
 Toplam: {data.get('Total_Stable','—')} | USDT: {data.get('USDT_MCap','—')} | USDC: {data.get('USDC_MCap','—')} | DAI: {data.get('DAI_MCap','—')}
-USDT.D (Piyasa %): {data.get('USDT_D','—')} | USDT Dom (Stable içi): {data.get('USDT_Dom_Stable','—')}
+USDT.D (Piyasa %): {data.get('USDT_D','—')} | Kaynak: {data.get('USDT_D_SOURCE','—')} | USDT Dom (Stable içi): {data.get('USDT_Dom_Stable','—')}
 
 📌 ON-CHAIN:
 Hashrate: {data.get('Hash','—')} | Aktif Adres (est): {data.get('Active','—')}
@@ -1658,14 +1748,14 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 - Funding Rate {data.get('FR','—')}: short squeeze mu long liquidation mu daha olası?
 - L/S {data.get('LS_Ratio','—')} ({data.get('LS_Signal','—')}): kalabalık taraf nerede, squeeze ihtimali?
 - Taker B/S {data.get('Taker','—')}: piyasaya agresif alıcı mı satıcı mı hakim?
-- Destek duvarı {data.get('Sup_Wall','—')} ({data.get('Sup_Vol','—')}): gerçekten güçlü mü?
-- Direnç duvarı {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}): kırılabilir mi?
+- Kraken destek duvarı {data.get('Sup_Wall','—')} ({data.get('Sup_Vol','—')}) ve Binance destek duvarı {data.get('BN_Sup_Wall','—')} ({data.get('BN_Sup_Vol','—')}): ortak destek gerçekten güçlü mü?
+- Kraken direnç duvarı {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}) ve Binance direnç duvarı {data.get('BN_Res_Wall','—')} ({data.get('BN_Res_Vol','—')}): kırılabilir mi?
 
 **🏦 3. KURUMSAL AKIŞ & LİKİDİTE ANALİZİ**
 - Günlük ETF netflow {data.get('ETF_FLOW_TOTAL','—')} ({data.get('ETF_FLOW_DATE','—')}): kurumsal para girişi/çıkışı trendi ne?
 - ETF bazlı akış dağılımı BTC fiyatıyla örtüşüyor mu?
 - Stablecoin toplam {data.get('Total_Stable','—')}: piyasaya hazır "barut" var mı?
-- USDT.D {data.get('USDT_D','—')}: yüksek mi alçak mı, altcoin sezonu sinyali veriyor mu?
+- USDT.D {data.get('USDT_D','—')} (kaynak: {data.get('USDT_D_SOURCE','—')}): yüksek mi alçak mı, altcoin sezonu sinyali veriyor mu?
 - Likidite analizi: para kripto'ya mı giriyor, stablecoin'de mi bekliyor?
 
 **🪙 4. ALTCOİN & DOMAİNANCE ANALİZİ**
@@ -1756,7 +1846,9 @@ with tab5:
         "🐋 Order Book & ETF": [
             ("Destek Duvarı","Sup_Wall"),("Destek Hacim","Sup_Vol"),
             ("Direnç Duvarı","Res_Wall"),("Direnç Hacim","Res_Vol"),
-            ("Tahta Durumu","Wall_Status"),
+            ("Tahta Durumu","Wall_Status"),("Binance Destek","BN_Sup_Wall"),
+            ("Binance Destek Hacim","BN_Sup_Vol"),("Binance Direnç","BN_Res_Wall"),
+            ("Binance Direnç Hacim","BN_Res_Vol"),("Binance Durum","BN_Wall_Status"),
             ("ETF Tarih","ETF_FLOW_DATE"),("ETF Netflow Toplam","ETF_FLOW_TOTAL"),
             ("IBIT Netflow","ETF_FLOW_IBIT"),("FBTC Netflow","ETF_FLOW_FBTC"),
             ("BITB Netflow","ETF_FLOW_BITB"),("ARKB Netflow","ETF_FLOW_ARKB"),
@@ -1768,7 +1860,7 @@ with tab5:
         "💵 Stablecoin & On-Chain": [
             ("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),
             ("USDC","USDC_MCap"),("DAI","DAI_MCap"),
-            ("USDT.D","USDT_D"),("USDT Dom Stable","USDT_Dom_Stable"),
+            ("USDT.D","USDT_D"),("USDT.D Kaynak","USDT_D_SOURCE"),("USDT Dom Stable","USDT_Dom_Stable"),
             ("Hashrate","Hash"),("Aktif Adres (est)","Active"),
         ],
         "🌍 Makro & Para Politikası": [
