@@ -841,6 +841,7 @@ def build_market_brief(data):
     btc_change = parse_number(data.get("BTC_C"))
     funding = parse_number(data.get("FR"))
     usdt_d = parse_number(data.get("USDT_D"))
+    stable_c_d = parse_number(data.get("STABLE_C_D"))
     vix = parse_number(data.get("VIX"))
     etf_flow_total = data.get("ETF_FLOW_TOTAL", "—")
     etf_flow_num = parse_number(etf_flow_total)
@@ -899,19 +900,28 @@ def build_market_brief(data):
             "class": badge_class(ls_signal),
         }
 
-    if etf_flow_num is not None and etf_flow_num > 0 and (usdt_d is None or usdt_d < 7):
+    liquidity_pressure = max(
+        value for value in [usdt_d, stable_c_d] if value is not None
+    ) if any(value is not None for value in [usdt_d, stable_c_d]) else None
+
+    liquidity_detail = (
+        f"ETF Netflow {etf_flow_total} · {etf_flow_date} · "
+        f"Stable.C.D {data.get('STABLE_C_D', '—')} · USDT.D {data.get('USDT_D', '—')}"
+    )
+
+    if etf_flow_num is not None and etf_flow_num > 0 and (liquidity_pressure is None or liquidity_pressure < 7):
         liquidity = {
             "label": "Likidite",
             "title": "Risk Sermayesi Akıyor",
-            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "detail": liquidity_detail,
             "badge": "FLOW",
             "class": "signal-long",
         }
-    elif (etf_flow_num is not None and etf_flow_num < 0) or (usdt_d is not None and usdt_d >= 7):
+    elif (etf_flow_num is not None and etf_flow_num < 0) or (liquidity_pressure is not None and liquidity_pressure >= 7):
         liquidity = {
             "label": "Likidite",
             "title": "Savunmacı Konumlanma",
-            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "detail": liquidity_detail,
             "badge": "CASH",
             "class": "signal-short",
         }
@@ -919,7 +929,7 @@ def build_market_brief(data):
         liquidity = {
             "label": "Likidite",
             "title": "Likidite Kararsız",
-            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "detail": liquidity_detail,
             "badge": "WATCH",
             "class": "signal-neutral",
         }
@@ -1032,12 +1042,13 @@ def veri_motoru():
 
     # 3. Global piyasa (Coinpaprika)
     try:
-        g = requests.get("https://api.coinpaprika.com/v1/global", headers=HEADERS, timeout=6).json()
+        g = fetch_json_without_env_proxy("https://api.coinpaprika.com/v1/global", timeout=6)
+        v["Total_MCap_Num"] = g["market_cap_usd"]
         v["Dom"]        = f"%{g['bitcoin_dominance_percentage']:.2f}"
         v["Total_MCap"] = f"${g['market_cap_usd']/1e12:.2f}T"
         v["Total_Vol"]  = f"${g['volume_24h_usd']/1e9:.1f}B"
     except:
-        v["Dom"]="—"; v["Total_MCap"]="—"; v["Total_Vol"]="—"
+        v["Dom"]="—"; v["Total_MCap"]="—"; v["Total_Vol"]="—"; v["Total_MCap_Num"]=None
 
     # ETH dominance
     try:
@@ -1197,21 +1208,25 @@ def veri_motoru():
 
     # 10. Stablecoin (DeFiLlama)
     try:
-        sc    = requests.get("https://stablecoins.llama.fi/stablecoins?includePrices=true",
-                             headers=HEADERS, timeout=8).json()["peggedAssets"]
+        sc = fetch_json_without_env_proxy(
+            "https://stablecoins.llama.fi/stablecoins?includePrices=true",
+            timeout=8,
+        )["peggedAssets"]
         total = sum(c.get("circulating",{}).get("peggedUSD",0) for c in sc)
         def gcap(sym):
             c = next((x for x in sc if x["symbol"].upper()==sym), None)
             return c["circulating"]["peggedUSD"] if c else 0
         usdt_c = gcap("USDT"); usdc_c = gcap("USDC"); dai_c = gcap("DAI")
+        v["Total_Stable_Num"] = total
         v["Total_Stable"]   = f"${total/1e9:.1f}B"
         v["USDT_MCap"]      = f"${usdt_c/1e9:.1f}B"
         v["USDC_MCap"]      = f"${usdc_c/1e9:.1f}B"
         v["DAI_MCap"]       = f"${dai_c/1e9:.1f}B"
         v["USDT_Dom_Stable"]= f"%{usdt_c/total*100:.1f}" if total > 0 else "—"
+        v["STABLE_C_D"]     = f"%{total/v['Total_MCap_Num']*100:.2f}" if v.get("Total_MCap_Num") else "—"
     except:
         v["Total_Stable"]="—"; v["USDT_MCap"]="—"; v["USDC_MCap"]="—"
-        v["DAI_MCap"]="—"; v["USDT_Dom_Stable"]="—"
+        v["DAI_MCap"]="—"; v["USDT_Dom_Stable"]="—"; v["Total_Stable_Num"]=None; v["STABLE_C_D"]="—"
 
     # USDT.D — canli market cap yuzdesi, ana cache'ten ayri hizda yenilenir
     v.update(fetch_live_usdt_d())
@@ -1603,18 +1618,19 @@ with tab1:
     with col_liquidity:
         render_info_panel(
             "Dry Powder",
-            "Stablecoin Cephanesi",
+            "Stablecoin Dominance",
             [
                 ("Toplam stable", data.get("Total_Stable", "—")),
+                ("Stable.C.D", data.get("STABLE_C_D", "—")),
                 ("USDT market cap", data.get("USDT_MCap", "—")),
+                ("USDT.D", data.get("USDT_D", "—")),
                 ("USDC market cap", data.get("USDC_MCap", "—")),
                 ("DAI market cap", data.get("DAI_MCap", "—")),
-                ("USDT.D", data.get("USDT_D", "—")),
                 ("USDT stable dominance", data.get("USDT_Dom_Stable", "—")),
             ],
             badge_text=brief["liquidity"]["title"],
             badge_kind=brief["liquidity"]["class"],
-            copy=f"Günlük ETF netflow {data.get('ETF_FLOW_TOTAL', '—')} ({data.get('ETF_FLOW_DATE', '—')}) ile stablecoin büyüklüğü aynı panelde, likidite yönü daha okunaklı.",
+            copy=f"Günlük ETF netflow {data.get('ETF_FLOW_TOTAL', '—')} ({data.get('ETF_FLOW_DATE', '—')}) ile toplam stable dominance ve USDT payı aynı panelde; savunmacı akış daha net okunur.",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1809,7 +1825,7 @@ BTCW: {data.get('ETF_FLOW_BTCW','—')} | GBTC: {data.get('ETF_FLOW_GBTC','—')
 
 📌 STABLECOİN LİKİDİTESİ:
 Toplam: {data.get('Total_Stable','—')} | USDT: {data.get('USDT_MCap','—')} | USDC: {data.get('USDC_MCap','—')} | DAI: {data.get('DAI_MCap','—')}
-USDT.D (Piyasa %): {data.get('USDT_D','—')} | USDT Dom (Stable içi): {data.get('USDT_Dom_Stable','—')}
+Stable.C.D (Piyasa %): {data.get('STABLE_C_D','—')} | USDT.D (Piyasa %): {data.get('USDT_D','—')} | USDT Dom (Stable içi): {data.get('USDT_Dom_Stable','—')}
 
 📌 ON-CHAIN:
 Hashrate: {data.get('Hash','—')} | Aktif Adres (est): {data.get('Active','—')}
@@ -1879,7 +1895,7 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 - Günlük ETF netflow {data.get('ETF_FLOW_TOTAL','—')} ({data.get('ETF_FLOW_DATE','—')}): kurumsal para girişi/çıkışı trendi ne?
 - ETF bazlı akış dağılımı BTC fiyatıyla örtüşüyor mu?
 - Stablecoin toplam {data.get('Total_Stable','—')}: piyasaya hazır "barut" var mı?
-- USDT.D {data.get('USDT_D','—')}: yüksek mi alçak mı, altcoin sezonu sinyali veriyor mu?
+- Stable.C.D {data.get('STABLE_C_D','—')} ve USDT.D {data.get('USDT_D','—')}: toplam stable parkı ile USDT özel talebi aynı şeyi mi söylüyor?
 - Likidite analizi: para kripto'ya mı giriyor, stablecoin'de mi bekliyor?
 
 **🪙 4. ALTCOİN & DOMAİNANCE ANALİZİ**
@@ -1994,7 +2010,7 @@ with tab5:
         "💵 Stablecoin & On-Chain": [
             ("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),
             ("USDC","USDC_MCap"),("DAI","DAI_MCap"),
-            ("USDT.D","USDT_D"),("USDT Dom Stable","USDT_Dom_Stable"),
+            ("Stable.C.D","STABLE_C_D"),("USDT.D","USDT_D"),("USDT Dom Stable","USDT_Dom_Stable"),
             ("Hashrate","Hash"),("Aktif Adres (est)","Active"),
         ],
         "🌍 Makro & Para Politikası": [
