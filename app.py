@@ -122,7 +122,7 @@ html, body, [data-testid="stAppViewContainer"] {
     position: absolute;
     top: 0; left: 0; right: 0;
     height: 2px;
-    background: linear-gradient(90deg, var(--accent), transparent);
+    background: linear-gradient(90deg, var(--card-accent, var(--accent)), transparent);
 }
 .metric-card:hover {
     border-color: var(--accent);
@@ -296,6 +296,209 @@ html, body, [data-testid="stAppViewContainer"] {
 
 /* Divider */
 hr { border-color: var(--border) !important; margin: 16px 0 !important; }
+
+[data-testid="stAppViewBlockContainer"] {
+    max-width: 1480px;
+    padding-top: 2rem;
+    padding-bottom: 4rem;
+}
+
+.stApp {
+    background:
+        radial-gradient(circle at top right, rgba(0,229,255,0.08), transparent 32%),
+        radial-gradient(circle at left center, rgba(255,107,53,0.06), transparent 30%),
+        linear-gradient(180deg, #060b16 0%, #08111f 100%) !important;
+}
+
+.terminal-header {
+    justify-content: space-between;
+    align-items: flex-end;
+    padding: 28px 32px;
+    margin: 10px 0 18px 0;
+    border: 1px solid rgba(38, 71, 115, 0.9);
+    border-radius: 20px;
+    background:
+        radial-gradient(circle at top right, rgba(0,229,255,0.18), transparent 30%),
+        linear-gradient(135deg, rgba(11,20,37,0.98) 0%, rgba(10,29,54,0.96) 100%);
+    box-shadow: 0 18px 55px rgba(0,0,0,0.28);
+}
+
+.hero-kicker {
+    font-family: var(--mono);
+    font-size: 0.72em;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+}
+
+.header-subtitle {
+    max-width: 740px;
+    margin: 10px 0 0 0;
+    color: var(--text);
+    opacity: 0.82;
+    font-size: 0.95em;
+    line-height: 1.7;
+}
+
+.header-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+}
+
+.header-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 12px;
+    border-radius: 999px;
+    border: 1px solid rgba(55, 91, 137, 0.9);
+    background: rgba(7, 16, 30, 0.78);
+    color: #eff8ff;
+    font-family: var(--mono);
+    font-size: 0.74em;
+}
+
+.overview-card,
+.info-panel {
+    background: linear-gradient(180deg, rgba(12,20,37,0.95), rgba(10,17,31,0.96));
+    border: 1px solid rgba(32, 53, 84, 0.95);
+    border-radius: 18px;
+    padding: 18px 18px 16px 18px;
+    box-shadow: 0 14px 34px rgba(0,0,0,0.18);
+}
+
+.overview-card .metric-value {
+    font-size: 1.24em;
+    margin-top: 8px;
+}
+
+.overview-detail {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 0.82em;
+    line-height: 1.6;
+}
+
+.info-panel {
+    height: 100%;
+    padding: 22px;
+}
+
+.panel-kicker {
+    font-family: var(--mono);
+    font-size: 0.68em;
+    color: var(--accent);
+    letter-spacing: 1.8px;
+    text-transform: uppercase;
+}
+
+.panel-title {
+    margin-top: 8px;
+    color: #ffffff;
+    font-size: 1.18em;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.panel-copy {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 0.83em;
+    line-height: 1.6;
+}
+
+.panel-list {
+    margin-top: 16px;
+}
+
+.panel-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 14px;
+    align-items: flex-start;
+    padding: 11px 0;
+    border-bottom: 1px solid rgba(30, 45, 70, 0.92);
+}
+
+.panel-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.panel-row span {
+    color: var(--muted);
+    font-size: 0.8em;
+}
+
+.panel-row strong {
+    color: #f4fbff;
+    font-size: 0.88em;
+    text-align: right;
+}
+
+.hero-caption {
+    margin-top: 14px;
+    color: rgba(232, 244, 255, 0.78);
+    font-size: 0.84em;
+    line-height: 1.7;
+}
+
+.section-lead {
+    margin: 4px 0 14px 0;
+    color: var(--muted);
+    font-size: 0.9em;
+}
+
+[data-testid="stTabs"] {
+    margin-top: 12px;
+}
+
+[data-testid="stTab"] {
+    background: rgba(10, 18, 31, 0.88) !important;
+    border: 1px solid transparent !important;
+    border-radius: 999px !important;
+    padding: 8px 14px !important;
+    margin-right: 6px !important;
+}
+
+[data-testid="stTab"][aria-selected="true"] {
+    background: rgba(12, 28, 51, 0.98) !important;
+    border-color: rgba(35, 72, 116, 0.95) !important;
+}
+
+.stButton button,
+.stDownloadButton button {
+    box-shadow: 0 12px 24px rgba(0, 153, 187, 0.15) !important;
+}
+
+@media (max-width: 900px) {
+    .terminal-header {
+        padding: 22px 20px;
+        align-items: flex-start;
+    }
+
+    .terminal-header h1 {
+        font-size: 1.9em;
+    }
+
+    .header-meta {
+        justify-content: flex-start;
+        margin-top: 16px;
+    }
+
+    .panel-row {
+        flex-direction: column;
+        gap: 6px;
+    }
+
+    .panel-row strong {
+        text-align: left;
+    }
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -341,6 +544,228 @@ def render_cards(items, cols=4, accent="--accent"):
 
 def cat(title: str, icon: str = ""):
     st.markdown(f'<div class="cat-header">{icon}&nbsp; {title}</div>', unsafe_allow_html=True)
+
+
+def parse_number(value):
+    if value in (None, "", "—"):
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    raw_text = str(value).strip()
+    negative_by_parens = raw_text.startswith("(") and raw_text.endswith(")")
+    cleaned = re.sub(r"[^0-9,.\-+]", "", raw_text)
+    if not cleaned:
+        return None
+
+    if "," in cleaned and "." in cleaned:
+        if cleaned.rfind(",") > cleaned.rfind("."):
+            cleaned = cleaned.replace(".", "").replace(",", ".")
+        else:
+            cleaned = cleaned.replace(",", "")
+    elif cleaned.count(",") == 1 and cleaned.count(".") == 0:
+        cleaned = cleaned.replace(",", ".")
+    else:
+        cleaned = cleaned.replace(",", "")
+
+    try:
+        number = float(cleaned)
+        return -abs(number) if negative_by_parens else number
+    except Exception:
+        return None
+
+
+def badge_class(text: str):
+    text = (text or "").lower()
+    if any(word in text for word in ["long", "güçlü", "risk", "destek", "akıyor", "pozitif"]):
+        return "signal-long"
+    if any(word in text for word in ["short", "baskı", "direnç", "savunmacı", "negatif"]):
+        return "signal-short"
+    return "signal-neutral"
+
+
+ETF_FLOW_COLUMNS = ("IBIT", "FBTC", "BITB", "ARKB", "BTCO", "EZBC", "BRRR", "HODL", "BTCW", "GBTC", "BTC", "TOTAL")
+
+
+def format_flow_millions(value):
+    number = parse_number(value)
+    if number is None:
+        return "—"
+    sign = "+" if number > 0 else ""
+    return f"{sign}{number:.1f}M $"
+
+
+def build_etf_flow_df(data):
+    return pd.DataFrame(
+        [
+            {
+                "ETF": "Total" if symbol == "TOTAL" else symbol,
+                "Netflow (US$m)": data.get(f"ETF_FLOW_{symbol}", "—"),
+            }
+            for symbol in ETF_FLOW_COLUMNS
+        ]
+    )
+
+
+def render_info_panel(kicker: str, title: str, rows, badge_text: str = "", badge_kind: str = "signal-neutral", copy: str = ""):
+    rows_html = "".join(
+        f"<div class='panel-row'><span>{label}</span><strong>{value}</strong></div>"
+        for label, value in rows
+    )
+    copy_html = f"<div class='panel-copy'>{copy}</div>" if copy else ""
+    badge_html = f"<div style='margin-top:16px'><span class='{badge_kind}'>{badge_text}</span></div>" if badge_text else ""
+
+    st.markdown(
+        f"""
+        <div class="info-panel">
+            <div class="panel-kicker">{kicker}</div>
+            <div class="panel-title">{title}</div>
+            {copy_html}
+            <div class="panel-list">{rows_html}</div>
+            {badge_html}
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def build_market_brief(data):
+    btc_change = parse_number(data.get("BTC_C"))
+    funding = parse_number(data.get("FR"))
+    usdt_d = parse_number(data.get("USDT_D"))
+    vix = parse_number(data.get("VIX"))
+    etf_flow_total = data.get("ETF_FLOW_TOTAL", "—")
+    etf_flow_num = parse_number(etf_flow_total)
+    etf_flow_date = data.get("ETF_FLOW_DATE", "—")
+    ls_signal = data.get("LS_Signal", "—")
+    wall_status = data.get("Wall_Status", "—")
+
+    if btc_change is not None and btc_change >= 2:
+        regime = {
+            "label": "Piyasa Rejimi",
+            "title": "Momentum Güçlü",
+            "detail": f"BTC 24s {data.get('BTC_C', '—')} · VIX {data.get('VIX', '—')}",
+            "badge": "TREND",
+            "class": "signal-long",
+        }
+    elif btc_change is not None and btc_change <= -2:
+        regime = {
+            "label": "Piyasa Rejimi",
+            "title": "Baskı Artıyor",
+            "detail": f"BTC 24s {data.get('BTC_C', '—')} · VIX {data.get('VIX', '—')}",
+            "badge": "RISK",
+            "class": "signal-short",
+        }
+    else:
+        regime = {
+            "label": "Piyasa Rejimi",
+            "title": "Denge Aranıyor",
+            "detail": f"BTC 24s {data.get('BTC_C', '—')} · VIX {data.get('VIX', '—')}",
+            "badge": "RANGE",
+            "class": "signal-neutral",
+        }
+
+    if funding is not None and funding > 0 and "Long" in ls_signal:
+        positioning = {
+            "label": "Pozisyonlanma",
+            "title": "Longlar Kalabalık",
+            "detail": f"Funding {data.get('FR', '—')} · L/S {data.get('LS_Ratio', '—')} · Taker {data.get('Taker', '—')}",
+            "badge": ls_signal,
+            "class": "signal-short",
+        }
+    elif funding is not None and funding < 0:
+        positioning = {
+            "label": "Pozisyonlanma",
+            "title": "Short Baskısı",
+            "detail": f"Funding {data.get('FR', '—')} · L/S {data.get('LS_Ratio', '—')} · Taker {data.get('Taker', '—')}",
+            "badge": ls_signal,
+            "class": "signal-short",
+        }
+    else:
+        positioning = {
+            "label": "Pozisyonlanma",
+            "title": "Daha Dengeli Akış",
+            "detail": f"Funding {data.get('FR', '—')} · L/S {data.get('LS_Ratio', '—')} · Taker {data.get('Taker', '—')}",
+            "badge": ls_signal,
+            "class": badge_class(ls_signal),
+        }
+
+    if etf_flow_num is not None and etf_flow_num > 0 and (usdt_d is None or usdt_d < 7):
+        liquidity = {
+            "label": "Likidite",
+            "title": "Risk Sermayesi Akıyor",
+            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "badge": "FLOW",
+            "class": "signal-long",
+        }
+    elif (etf_flow_num is not None and etf_flow_num < 0) or (usdt_d is not None and usdt_d >= 7):
+        liquidity = {
+            "label": "Likidite",
+            "title": "Savunmacı Konumlanma",
+            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "badge": "CASH",
+            "class": "signal-short",
+        }
+    else:
+        liquidity = {
+            "label": "Likidite",
+            "title": "Likidite Kararsız",
+            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "badge": "WATCH",
+            "class": "signal-neutral",
+        }
+
+    if "Dirence" in wall_status:
+        focus = {
+            "label": "Odak Seviye",
+            "title": "Direnç Testi",
+            "detail": f"Şimdi {data.get('BTC_Now', '—')} · Duvar {data.get('Res_Wall', '—')} ({data.get('Res_Vol', '—')})",
+            "badge": "RESISTANCE",
+            "class": "signal-short",
+        }
+    elif "Desteğe" in wall_status:
+        focus = {
+            "label": "Odak Seviye",
+            "title": "Destek Takibi",
+            "detail": f"Şimdi {data.get('BTC_Now', '—')} · Duvar {data.get('Sup_Wall', '—')} ({data.get('Sup_Vol', '—')})",
+            "badge": "SUPPORT",
+            "class": "signal-long",
+        }
+    else:
+        focus = {
+            "label": "Odak Seviye",
+            "title": "Kanal İçi Fiyatlama",
+            "detail": f"Destek {data.get('Sup_Wall', '—')} · Direnç {data.get('Res_Wall', '—')}",
+            "badge": "RANGE",
+            "class": "signal-neutral",
+        }
+
+    if vix is not None and vix >= 25:
+        regime["detail"] = f"{regime['detail']} · Yüksek oynaklık"
+
+    return {
+        "regime": regime,
+        "positioning": positioning,
+        "liquidity": liquidity,
+        "focus": focus,
+    }
+
+
+def render_market_brief(brief):
+    cols = st.columns(4)
+    for col, card in zip(cols, brief.values()):
+        with col:
+            st.markdown(
+                f"""
+                <div class="overview-card">
+                    <div class="metric-label">{card['label']}</div>
+                    <div class="metric-value">{card['title']}</div>
+                    <div class="overview-detail">{card['detail']}</div>
+                    <div style="margin-top:14px"><span class="{card['class']}">{card['badge']}</span></div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 
 
 # ============================================================
@@ -403,9 +828,8 @@ def veri_motoru():
     except:
         v["ETH_Dom"] = "—"
 
-    # 4. BTC ETF fiyat (yFinance) + Gerçek Net Flow (Farside)
-    ETF_LIST = ["IBIT","FBTC","BITB","ARKB","GBTC","HODL","BTCO","BRRR","EZBC","DEFI"]
-    for sym in ["IBIT","FBTC","BITB","ARKB","GBTC"]:
+    # 4. BTC ETF fiyatlari (yFinance) + gunluk netflow (Farside)
+    for sym in ["IBIT","FBTC","BITB","ARKB"]:
         try:
             df   = yf.Ticker(sym).history(period="10d")
             if df.empty: raise ValueError
@@ -416,80 +840,34 @@ def veri_motoru():
         except:
             v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"; v[f"{sym}_Vol"]="—"
 
-    # Gerçek Günlük Net ETF Akış — SoSoValue (birincil) + Farside (yedek)
-    etf_flow_done = False
+    for symbol in ETF_FLOW_COLUMNS:
+        v[f"ETF_FLOW_{symbol}"] = "—"
+    v["ETF_FLOW_DATE"] = "—"
 
-    # Kaynak 1: SoSoValue public API
-    try:
-        sv = requests.get(
-            "https://sosovalue.com/api/etf/us-btc-spot/flow-history?range=1D",
-            headers={**HEADERS, "Origin": "https://sosovalue.com"},
-            timeout=8
-        ).json()
-        # SoSoValue yanıt yapısı: {data: [{date, IBIT, FBTC, ...total}]}
-        items = sv.get("data") or sv.get("list") or []
-        if items:
-            last = items[-1]
-            def fmt_flow(val):
-                if val is None: return "—"
-                try:
-                    v2 = float(val)
-                    return f"{'📈 +' if v2 > 0 else '📉 '}{abs(v2):.1f}M $"
-                except: return "—"
-            for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
-                v[f"{etf}_Flow"] = fmt_flow(last.get(etf) or last.get(etf.lower()))
-            total = last.get("total") or last.get("Total")
-            v["ETF_Total_Flow"] = fmt_flow(total)
-            v["ETF_Total_Raw"]  = float(total) if total else None
-            v["ETF_Flow_Date"]  = str(last.get("date",""))[:10]
-            etf_flow_done = True
-    except: pass
-
-    # Kaynak 2: Farside scrape
-    if not etf_flow_done:
+    for flow_url in [
+        "https://farside.co.uk/bitcoin-etf-flow-all-data/",
+        "https://r.jina.ai/http://farside.co.uk/bitcoin-etf-flow-all-data/",
+    ]:
         try:
-            from bs4 import BeautifulSoup
-            fs = requests.get(
-                "https://farside.co.uk/bitcoin-etf/",
-                headers={**HEADERS,
-                         "Referer": "https://farside.co.uk/",
-                         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
-                timeout=12
-            ).text
-            soup  = BeautifulSoup(fs, "html.parser")
-            table = soup.find("table")
-            rows  = table.find_all("tr") if table else []
-            etf_cols = ["Date","IBIT","FBTC","BITB","ARKB","BTCO","EZBC","BRRR","HODL","DEFI","GBTC","BTC","Total"]
-            last_row = None
-            for row in reversed(rows):
-                cells = [td.get_text(strip=True) for td in row.find_all(["td","th"])]
-                if cells and cells[0] and cells[0][0].isdigit():
-                    last_row = cells; break
-            def parse_flow(val):
-                val = val.strip().replace(",","")
-                if not val or val == "-": return None
-                if val.startswith("(") and val.endswith(")"): return -float(val[1:-1])
-                try: return float(val)
-                except: return None
-            def fmt_flow(val):
-                if val is None: return "—"
-                return f"{'📈 +' if val > 0 else '📉 '}{abs(val):.1f}M $"
-            if last_row:
-                fm = {col: parse_flow(last_row[i]) for i, col in enumerate(etf_cols) if i < len(last_row)}
-                v["ETF_Flow_Date"] = last_row[0]
-                for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
-                    v[f"{etf}_Flow"] = fmt_flow(fm.get(etf))
-                v["ETF_Total_Flow"] = fmt_flow(fm.get("Total"))
-                v["ETF_Total_Raw"]  = fm.get("Total")
-                etf_flow_done = True
-        except: pass
+            flow_text = requests.get(flow_url, headers=HEADERS, timeout=20).text
+            flow_rows = [
+                line.strip()
+                for line in flow_text.splitlines()
+                if re.match(r"^\|\s*\d{2}\s+[A-Za-z]{3}\s+\d{4}\s*\|", line.strip())
+            ]
+            if not flow_rows:
+                continue
 
-    if not etf_flow_done:
-        for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
-            v[f"{etf}_Flow"] = "—"
-        v["ETF_Total_Flow"] = "—"
-        v["ETF_Total_Raw"]  = None
-        v["ETF_Flow_Date"]  = "—"
+            latest_row = [part.strip() for part in flow_rows[-1].split("|")[1:-1]]
+            if len(latest_row) < len(ETF_FLOW_COLUMNS) + 1:
+                continue
+
+            v["ETF_FLOW_DATE"] = latest_row[0]
+            for symbol, raw_value in zip(ETF_FLOW_COLUMNS, latest_row[1:1 + len(ETF_FLOW_COLUMNS)]):
+                v[f"ETF_FLOW_{symbol}"] = format_flow_millions(raw_value)
+            break
+        except:
+            pass
 
     # 5. Hisse endeksleri
     endeksler = {
@@ -750,40 +1128,92 @@ def turev_cek():
 # ============================================================
 #  SAYFA YÜKLEMESİ
 # ============================================================
+son_guncelleme = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%d.%m.%Y %H:%M:%S")
+with st.spinner("Piyasa verileri ve türev akışı yükleniyor..."):
+    data = veri_motoru()
+    data.update(turev_cek())
+
+brief = build_market_brief(data)
+
 # Header
-st.markdown("""
-<div class="terminal-header">
-    <span class="status-dot"></span>
-    <h1>⚡ Serhat Alpha Terminal</h1>
-    <span class="badge">v17.0</span>
-</div>
-""", unsafe_allow_html=True)
+st.markdown(
+    f"""
+    <div class="terminal-header">
+        <div>
+            <div class="hero-kicker">Digital Asset Intelligence</div>
+            <h1>⚡ Serhat Alpha Terminal</h1>
+            <div class="header-subtitle">
+                Kripto, makro ve likidite verilerini tek ekranda toplayan daha net bir karar paneli.
+                Önce kısa özeti gör, sonra sekmelerde detaya in.
+            </div>
+        </div>
+        <div class="header-meta">
+            <span class="header-pill"><span class="status-dot"></span> Canlı veri akışı</span>
+            <span class="header-pill">İstanbul · {son_guncelleme}</span>
+            <span class="badge">v18.0</span>
+        </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    "<div class='section-lead'>Bugünün en kritik sinyallerini öne çıkaran kısa özet kartları.</div>",
+    unsafe_allow_html=True,
+)
+render_market_brief(brief)
 
 # Sidebar
 with st.sidebar:
     st.markdown("### 🛰️ Kontrol Merkezi")
+    st.caption(f"⏱️ Son güncelleme: {son_guncelleme}")
     st.divider()
 
     if st.button("🔄 Verileri Yenile", use_container_width=True):
         st.cache_data.clear()
         st.rerun()
 
-    son_guncelleme = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%d.%m.%Y %H:%M:%S")
-    st.caption(f"⏱️ **Son güncelleme:** {son_guncelleme}")
-    st.divider()
-
-    with st.spinner("Veriler yükleniyor..."):
-        data  = veri_motoru()
-        turev = turev_cek()
-        data.update(turev)
-
-    df_exp = pd.DataFrame([(k,v) for k,v in data.items() if k!="NEWS"], columns=["Metrik","Değer"])
-    csv    = df_exp.to_csv(index=False, sep=";").encode("utf-8-sig")
+    df_exp = pd.DataFrame([(k, v) for k, v in data.items() if k != "NEWS"], columns=["Metrik", "Değer"])
+    csv = df_exp.to_csv(index=False, sep=";").encode("utf-8-sig")
     st.download_button(
-        "💾 CSV İndir", csv,
+        "💾 CSV İndir",
+        csv,
         file_name=f"AlphaTerminal_{pd.Timestamp.now().strftime('%Y%m%d_%H%M')}.csv",
-        mime="text/csv", use_container_width=True
+        mime="text/csv",
+        use_container_width=True,
     )
+
+    st.divider()
+    render_info_panel(
+        "Quick Pulse",
+        "Bugünün Nabzı",
+        [
+            ("BTC fiyat", data.get("BTC_P", "—")),
+            ("Korku / Açgözlülük", data.get("FNG", "—")),
+            ("Funding", data.get("FR", "—")),
+            ("VIX", data.get("VIX", "—")),
+        ],
+        badge_text=brief["regime"]["title"],
+        badge_kind=brief["regime"]["class"],
+        copy="Yönü anlamak için fiyat, duygu ve volatilite aynı blokta toplandı.",
+    )
+
+    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+    render_info_panel(
+        "Watchlist",
+        "İzlenecek Seviyeler",
+        [
+            ("Ana destek", f"{data.get('Sup_Wall', '—')} · {data.get('Sup_Vol', '—')}"),
+            ("Ana direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
+            ("Günlük ETF Netflow", f"{data.get('ETF_FLOW_TOTAL', '—')} · {data.get('ETF_FLOW_DATE', '—')}"),
+            ("USD/TRY", data.get("USDTRY", "—")),
+        ],
+        badge_text=brief["focus"]["badge"],
+        badge_kind=brief["focus"]["class"],
+        copy="Kısa vadeli kararları en çok etkileyen seviyeler burada özetleniyor.",
+    )
+
     st.divider()
     st.markdown("""
 **Veri Kaynakları:**  
@@ -791,7 +1221,7 @@ with st.sidebar:
 `DeFiLlama` · `yFinance`  
 `OKX` · `FRED` · `CoinDesk`
 
-**Model:** `Gemini 2.0 Flash`  
+**Model:** `Gemini 2.5 Flash`  
 **Cache:** 3 dk | Türev: Canlı
 """)
 
@@ -808,324 +1238,245 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs([
 # ── TAB 1: BİTCOİN & KRİPTO ─────────────────────────────────
 with tab1:
 
-    # BTC HERO
-    btc_c = data.get("BTC_C","")
-    try:
-        btc_num = float(btc_c.replace("%",""))
-        btc_color = "var(--green)" if btc_num >= 0 else "var(--red)"
-        btc_arrow = "▲" if btc_num >= 0 else "▼"
-    except:
-        btc_color = "var(--muted)"; btc_arrow = ""
+    btc_c = data.get("BTC_C", "")
+    btc_num = parse_number(btc_c)
+    btc_color = "var(--green)" if btc_num is not None and btc_num >= 0 else ("var(--red)" if btc_num is not None else "var(--muted)")
+    btc_arrow = "▲" if btc_num is not None and btc_num >= 0 else ("▼" if btc_num is not None else "")
 
-    st.markdown(f"""
-    <div class="btc-hero">
-        <div class="metric-label">BITCOIN / USD — CANLI FİYAT</div>
-        <div class="price">{data.get('BTC_P','—')}</div>
-        <div class="sub">
-            <span style="color:{btc_color}; font-weight:700;">{btc_arrow} 24s: {btc_c}</span>
-            &nbsp;·&nbsp; 7g: {data.get('BTC_7D','—')}
-            &nbsp;·&nbsp; Hacim: {data.get('Vol_24h','—')}
-            &nbsp;·&nbsp; MCap: {data.get('BTC_MCap','—')}
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── BÖLÜM A: Piyasa Genel Görünüm ─────────────────────
-    cat("PIYASA GENEL GÖRÜNÜM", "📡")
-    render_cards([
-        ("Toplam Market Cap",  data.get("Total_MCap"), ""),
-        ("BTC Dominance",      data.get("Dom"),        ""),
-        ("ETH Dominance",      data.get("ETH_Dom"),    ""),
-        ("Korku / Açgözlülük", data.get("FNG"),        ""),
-        ("Total Piyasa Hacim", data.get("Total_Vol"),  ""),
-        ("24s BTC Hacim",      data.get("Vol_24h"),    ""),
-    ], cols=3)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── BÖLÜM B: Türev Piyasalar (Sentiment) ───────────────
-    cat("TÜREV PİYASALAR & SENTİMENT", "📊")
-
-    # L/S sinyali büyük göster
-    ls_signal = data.get("LS_Signal","—")
-    if "Long" in ls_signal:
-        sig_cls = "signal-long"
-    elif "Short" in ls_signal:
-        sig_cls = "signal-short"
+    ls_signal = data.get("LS_Signal", "—")
+    fr_val = data.get("FR", "—")
+    fr_num = parse_number(fr_val)
+    if fr_num is not None and fr_num > 0:
+        fr_label = "Pozitif funding, long tarafına prim ödeniyor."
+        fr_badge = "signal-long"
+    elif fr_num is not None and fr_num < 0:
+        fr_label = "Negatif funding, short tarafı baskın."
+        fr_badge = "signal-short"
     else:
-        sig_cls = "signal-neutral"
+        fr_label = "Funding dengeli, tek taraflı kalabalık yok."
+        fr_badge = "signal-neutral"
 
-    fr_val = data.get("FR","—")
-    try:
-        fr_num = float(fr_val.replace("%",""))
-        fr_badge = "signal-long" if fr_num > 0 else ("signal-short" if fr_num < 0 else "signal-neutral")
-        fr_label = "Pozitif (Long favori)" if fr_num > 0 else ("Negatif (Short favori)" if fr_num < 0 else "Nötr")
-    except:
-        fr_badge = "signal-neutral"; fr_label = ""
+    wall_status = data.get("Wall_Status", "—")
+    ws_cls = badge_class(wall_status)
 
-    col_ls, col_fr, col_oi = st.columns(3)
-    with col_ls:
+    hero_col, context_col = st.columns([1.75, 1.05])
+    with hero_col:
         st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Long / Short Sinyali</div>
-            <div class="metric-value" style="margin-top:6px">
-                <span class="{sig_cls}">{ls_signal}</span>
+        <div class="btc-hero">
+            <div class="metric-label">BITCOIN / USD — CANLI FİYAT</div>
+            <div class="price">{data.get('BTC_P','—')}</div>
+            <div class="sub">
+                <span style="color:{btc_color}; font-weight:700;">{btc_arrow} 24s: {btc_c}</span>
+                &nbsp;·&nbsp; 7g: {data.get('BTC_7D','—')}
+                &nbsp;·&nbsp; Hacim: {data.get('Vol_24h','—')}
+                &nbsp;·&nbsp; MCap: {data.get('BTC_MCap','—')}
             </div>
-            <div class="metric-delta-neu" style="margin-top:8px">
-                Oran: {data.get('LS_Ratio','—')} &nbsp;|&nbsp;
-                L: {data.get('Long_Pct','—')} &nbsp;S: {data.get('Short_Pct','—')}
+            <div class="hero-caption">
+                Fiyat, duygu ve likidite verileri daha hızlı okunabilsin diye ilk blokta sadeleştirildi.
             </div>
         </div>
         """, unsafe_allow_html=True)
-    with col_fr:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Funding Rate (OKX)</div>
-            <div class="metric-value" style="margin-top:6px">
-                <span class="{fr_badge}">{fr_val}</span>
-            </div>
-            <div class="metric-delta-neu" style="margin-top:8px">{fr_label}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col_oi:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">Open Interest + Taker B/S</div>
-            <div class="metric-value">{data.get('OI','—')}</div>
-            <div class="metric-delta-neu" style="margin-top:4px">Taker B/S: {data.get('Taker','—')}</div>
-        </div>
-        """, unsafe_allow_html=True)
+    with context_col:
+        render_info_panel(
+            "Executive View",
+            "Bugünün Oyun Planı",
+            [
+                ("Piyasa rejimi", brief["regime"]["title"]),
+                ("Pozisyonlanma", brief["positioning"]["title"]),
+                ("Likidite modu", brief["liquidity"]["title"]),
+                ("Odak seviye", brief["focus"]["detail"]),
+            ],
+            badge_text=brief["focus"]["title"],
+            badge_kind=brief["focus"]["class"],
+            copy="Kısa vadeli karar almadan önce yön, kalabalık taraf ve kritik seviyeler tek panelde toplandı.",
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── BÖLÜM C: Balina Duvarları ──────────────────────────
-    cat("BALİNA DUVARLARI — ORDER BOOK ANALİZİ (Kraken)", "🐋")
-
-    wall_status = data.get("Wall_Status","—")
-    ws_cls = "signal-long" if "Destek" in wall_status else ("signal-short" if "Direnç" in wall_status else "signal-neutral")
-
-    col_ws, col_sup, col_res = st.columns(3)
-    with col_ws:
-        st.markdown(f"""
-        <div class="metric-card" style="text-align:center; padding:20px;">
-            <div class="metric-label">Tahta Durumu</div>
-            <div style="margin-top:10px">
-                <span class="{ws_cls}" style="font-size:0.9em;">{wall_status}</span>
-            </div>
-            <div class="metric-delta-neu" style="margin-top:8px">Mevcut: {data.get('BTC_Now','—')}</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col_sup:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">🟢 Ana Destek Duvarı</div>
-            <div class="metric-value" style="color:var(--green)">{data.get('Sup_Wall','—')}</div>
-            <div class="metric-delta-neu" style="margin-top:4px">📦 {data.get('Sup_Vol','—')} bekliyor</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col_res:
-        st.markdown(f"""
-        <div class="metric-card">
-            <div class="metric-label">🔴 Ana Direnç Duvarı</div>
-            <div class="metric-value" style="color:var(--red)">{data.get('Res_Wall','—')}</div>
-            <div class="metric-delta-neu" style="margin-top:4px">📦 {data.get('Res_Vol','—')} bekliyor</div>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── BÖLÜM D: Bitcoin ETF & Kurumsal Akışlar ────────────
-    cat("BİTCOİN ETF — GÜNLÜK NET AKIŞ (Farside)", "🏦")
-
-    # Toplam akış durumu
-    total_raw = data.get("ETF_Total_Raw")
-    if total_raw is not None:
-        total_color = "var(--green)" if total_raw > 0 else "var(--red)"
-        total_arrow = "📈" if total_raw > 0 else "📉"
-        total_signal = "NET GİRİŞ" if total_raw > 0 else "NET ÇIKIŞ"
-        total_cls = "signal-long" if total_raw > 0 else "signal-short"
-    else:
-        total_color = "var(--muted)"; total_arrow = "—"
-        total_signal = "VERİ YOK"; total_cls = "signal-neutral"
-
-    flow_date = data.get("ETF_Flow_Date", "—")
-
-    st.markdown(f"""
-    <div class="metric-card" style="border-color:#1e3d6b; margin-bottom:12px;">
-        <div class="metric-label">TOPLAM ETF NET AKIŞ — {flow_date}</div>
-        <div style="display:flex; align-items:center; gap:14px; margin-top:8px;">
-            <div class="metric-value" style="color:{total_color}; font-size:1.5em;">
-                {data.get('ETF_Total_Flow','—')}
-            </div>
-            <span class="{total_cls}">{total_signal}</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
-
-    # Her ETF için fiyat + flow kartı
-    etf_items = [
-        ("IBIT", "BlackRock"),
-        ("FBTC", "Fidelity"),
-        ("BITB", "Bitwise"),
-        ("ARKB", "ARK"),
-        ("GBTC", "Grayscale"),
-        ("BTCO", "Invesco"),
-        ("HODL", "VanEck"),
-        ("BRRR", "Valkyrie"),
-        ("EZBC", "Franklin"),
-        ("DEFI", "Hashdex"),
-    ]
-
-    cols_etf = st.columns(5)
-    for i, (sym, issuer) in enumerate(etf_items):
-        price  = data.get(f"{sym}_P", "—")
-        change = data.get(f"{sym}_C", "")
-        flow   = data.get(f"{sym}_Flow", "—")
-
-        try:
-            chg_num = float(change.replace("%",""))
-            chg_color = "var(--green)" if chg_num >= 0 else "var(--red)"
-            chg_arrow = "▲" if chg_num >= 0 else "▼"
-        except:
-            chg_color = "var(--muted)"; chg_arrow = ""
-
-        flow_color = "var(--green)" if "📈" in flow else ("var(--red)" if "📉" in flow else "var(--muted)")
-
-        with cols_etf[i % 5]:
-            st.markdown(
-                f'<div class="metric-card" style="margin-bottom:8px;">'
-                f'<div class="metric-label">{sym} — {issuer}</div>'
-                f'<div class="metric-value">{price}</div>'
-                f'<div style="color:{chg_color};font-size:0.72em;font-family:var(--mono);margin-top:2px;">'
-                f'{chg_arrow} {change}</div>'
-                f'<div style="color:{flow_color};font-size:0.72em;font-family:var(--mono);'
-                f'margin-top:4px;border-top:1px solid #1a2d4a;padding-top:4px;">'
-                f'Flow: {flow}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── BÖLÜM E: Stablecoin Likiditesi ────────────────────
-    cat("STABLECOİN LİKİDİTESİ — DEFILLLAMA", "💵")
+    cat("HIZLI NABIZ", "📡")
     render_cards([
-        ("Toplam Stablecoin",    data.get("Total_Stable","—"), ""),
-        ("USDT Market Cap",      data.get("USDT_MCap","—"),    ""),
-        ("USDC Market Cap",      data.get("USDC_MCap","—"),    ""),
-        ("DAI Market Cap",       data.get("DAI_MCap","—"),     ""),
-        ("USDT.D (Piyasa %)",    data.get("USDT_D","—"),       ""),
-        ("USDT Dom (Stable %)",  data.get("USDT_Dom_Stable","—"),""),
-    ], cols=3)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # ── BÖLÜM F: Altcoinler ────────────────────────────────
-    cat("ALTKOIN FİYATLARI & PERFORMANS", "🪙")
-    render_cards([
-        ("Ethereum (ETH)",    data.get("ETH_P","—"),  data.get("ETH_C","")),
-        ("Solana (SOL)",      data.get("SOL_P","—"),  data.get("SOL_C","")),
-        ("BNB Chain (BNB)",   data.get("BNB_P","—"),  data.get("BNB_C","")),
-        ("Ripple (XRP)",      data.get("XRP_P","—"),  data.get("XRP_C","")),
-        ("Cardano (ADA)",     data.get("ADA_P","—"),  data.get("ADA_C","")),
-        ("Avalanche (AVAX)",  data.get("AVAX_P","—"), data.get("AVAX_C","")),
-        ("Polkadot (DOT)",    data.get("DOT_P","—"),  data.get("DOT_C","")),
-        ("Chainlink (LINK)",  data.get("LINK_P","—"), data.get("LINK_C","")),
+        ("Fear & Greed", data.get("FNG", "—"), ""),
+        ("Funding Rate", data.get("FR", "—"), ""),
+        ("Open Interest", data.get("OI", "—"), ""),
+        ("Günlük ETF Netflow", data.get("ETF_FLOW_TOTAL", "—"), data.get("ETF_FLOW_DATE", "—")),
+        ("BTC Dominance", data.get("Dom", "—"), ""),
+        ("ETH Dominance", data.get("ETH_Dom", "—"), ""),
+        ("Taker B/S", data.get("Taker", "—"), ""),
+        ("Toplam Piyasa Hacmi", data.get("Total_Vol", "—"), ""),
     ], cols=4)
 
-    # 7 günlük performans karşılaştırması
-    st.markdown("<div style='margin-top:12px; margin-bottom:4px;'>", unsafe_allow_html=True)
-    cat("7 GÜNLÜK PERFORMANS", "📅")
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    cat("POZİSYONLAMA & SEVİYELER", "🧭")
+    col_sentiment, col_orderbook = st.columns([1.15, 1])
+    with col_sentiment:
+        render_info_panel(
+            "Positioning",
+            "Türev Piyasa Özeti",
+            [
+                ("Long / Short", ls_signal),
+                ("L/S oranı", data.get("LS_Ratio", "—")),
+                ("Long / Short %", f"{data.get('Long_Pct', '—')} / {data.get('Short_Pct', '—')}"),
+                ("Funding", data.get("FR", "—")),
+                ("Taker B/S", data.get("Taker", "—")),
+                ("Open Interest", data.get("OI", "—")),
+            ],
+            badge_text=fr_label,
+            badge_kind=fr_badge,
+            copy="Kalabalık tarafı ve olası squeeze riskini tek bakışta okumak için türev verileri bir araya getirildi.",
+        )
+    with col_orderbook:
+        render_info_panel(
+            "Kraken Walls",
+            "Order Book Seviyeleri",
+            [
+                ("Tahta durumu", wall_status),
+                ("Mevcut fiyat", data.get("BTC_Now", "—")),
+                ("Ana destek", f"{data.get('Sup_Wall', '—')} · {data.get('Sup_Vol', '—')}"),
+                ("Ana direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
+            ],
+            badge_text=brief["focus"]["title"],
+            badge_kind=ws_cls,
+            copy="Destek ve direnç duvarları karar alanına dönüştürüldü; fiyatın hangi tarafa yakın olduğu netleşiyor.",
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    cat("KURUMSAL AKIŞ & LİKİDİTE", "🏦")
+    col_etf, col_liquidity = st.columns([1.25, 1])
+    with col_etf:
+        st.markdown("#### Günlük ETF Netflow")
+        st.caption(f"Kaynak: Farside · {data.get('ETF_FLOW_DATE', '—')}")
+        st.dataframe(build_etf_flow_df(data), use_container_width=True, hide_index=True)
+    with col_liquidity:
+        render_info_panel(
+            "Dry Powder",
+            "Stablecoin Cephanesi",
+            [
+                ("Toplam stable", data.get("Total_Stable", "—")),
+                ("USDT market cap", data.get("USDT_MCap", "—")),
+                ("USDC market cap", data.get("USDC_MCap", "—")),
+                ("DAI market cap", data.get("DAI_MCap", "—")),
+                ("USDT.D", data.get("USDT_D", "—")),
+                ("USDT stable dominance", data.get("USDT_Dom_Stable", "—")),
+            ],
+            badge_text=brief["liquidity"]["title"],
+            badge_kind=brief["liquidity"]["class"],
+            copy=f"Günlük ETF netflow {data.get('ETF_FLOW_TOTAL', '—')} ({data.get('ETF_FLOW_DATE', '—')}) ile stablecoin büyüklüğü aynı panelde, likidite yönü daha okunaklı.",
+        )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    cat("ALTCOIN RADARI", "🪙")
     render_cards([
-        ("ETH 7g",  data.get("ETH_7D","—"),  ""),
-        ("SOL 7g",  data.get("SOL_7D","—"),  ""),
-        ("BNB 7g",  data.get("BNB_7D","—"),  ""),
-        ("XRP 7g",  data.get("XRP_7D","—"),  ""),
-        ("ADA 7g",  data.get("ADA_7D","—"),  ""),
-        ("AVAX 7g", data.get("AVAX_7D","—"), ""),
-        ("DOT 7g",  data.get("DOT_7D","—"),  ""),
-        ("LINK 7g", data.get("LINK_7D","—"), ""),
+        ("Ethereum (ETH)", data.get("ETH_P", "—"), data.get("ETH_C", "")),
+        ("Solana (SOL)", data.get("SOL_P", "—"), data.get("SOL_C", "")),
+        ("BNB Chain (BNB)", data.get("BNB_P", "—"), data.get("BNB_C", "")),
+        ("Ripple (XRP)", data.get("XRP_P", "—"), data.get("XRP_C", "")),
+        ("Cardano (ADA)", data.get("ADA_P", "—"), data.get("ADA_C", "")),
+        ("Avalanche (AVAX)", data.get("AVAX_P", "—"), data.get("AVAX_C", "")),
+        ("Polkadot (DOT)", data.get("DOT_P", "—"), data.get("DOT_C", "")),
+        ("Chainlink (LINK)", data.get("LINK_P", "—"), data.get("LINK_C", "")),
     ], cols=4)
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    cat("7 GÜNLÜK GÖRELİ GÜÇ", "📅")
+    render_cards([
+        ("ETH 7g", data.get("ETH_7D", "—"), ""),
+        ("SOL 7g", data.get("SOL_7D", "—"), ""),
+        ("BNB 7g", data.get("BNB_7D", "—"), ""),
+        ("XRP 7g", data.get("XRP_7D", "—"), ""),
+        ("ADA 7g", data.get("ADA_7D", "—"), ""),
+        ("AVAX 7g", data.get("AVAX_7D", "—"), ""),
+        ("DOT 7g", data.get("DOT_7D", "—"), ""),
+        ("LINK 7g", data.get("LINK_7D", "—"), ""),
+    ], cols=4)
+
+    top_news = data.get("NEWS", [])[:3]
+    if top_news:
+        st.markdown("<br>", unsafe_allow_html=True)
+        cat("BUGÜNÜN HABER BAŞLIKLARI", "📰")
+        news_cols = st.columns(len(top_news))
+        for col, item in zip(news_cols, top_news):
+            with col:
+                st.markdown(f"""
+                <div class="news-card">
+                    <a href="{item['url']}" target="_blank">{item['title']}</a>
+                    <div class="news-meta">🕐 {item['time']} · {item['source']}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
 
-# ── TAB 2: MAKRO & PİYASALAR ─────────────────────────────────
+# ── TAB 2: MAKRO & PIYASALAR ───────────────────────────────
 with tab2:
 
-    # ── BÖLÜM A: Makro Para Politikası ────────────────────
     cat("MAKRO PARA POLİTİKASI", "🏦")
     render_cards([
-        ("FED Faiz Oranı",   data.get("FED","—"),       ""),
-        ("M2 Büyümesi (YoY)",data.get("M2","—"),        ""),
-        ("ABD 10Y Tahvil",   data.get("US10Y","—"),     data.get("US10Y_C","")),
-        ("DXY Dolar Endeksi",data.get("DXY","—"),       data.get("DXY_C","")),
-        ("VIX Volatilite",   data.get("VIX","—"),       data.get("VIX_C","")),
-        ("BTC ↔ S&P500 Kor.",str(data.get("Corr_SP500","—")), ""),
-        ("BTC ↔ Altın Kor.", str(data.get("Corr_Gold","—")),  ""),
+        ("FED Faiz Oranı", data.get("FED", "—"), ""),
+        ("M2 Büyümesi (YoY)", data.get("M2", "—"), ""),
+        ("ABD 10Y Tahvil", data.get("US10Y", "—"), data.get("US10Y_C", "")),
+        ("DXY Dolar Endeksi", data.get("DXY", "—"), data.get("DXY_C", "")),
+        ("VIX Volatilite", data.get("VIX", "—"), data.get("VIX_C", "")),
+        ("BTC ↔ S&P500 Kor.", str(data.get("Corr_SP500", "—")), ""),
+        ("BTC ↔ Altın Kor.", str(data.get("Corr_Gold", "—")), ""),
     ], cols=4)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── BÖLÜM B: Global Hisse Endeksleri ──────────────────
     cat("GLOBAL HİSSE SENEDİ ENDEKSLERİ", "📈")
     col_us, col_eu, col_asia = st.columns(3)
     with col_us:
         st.markdown('<div class="metric-label" style="margin-bottom:8px;">🇺🇸 AMERİKA</div>', unsafe_allow_html=True)
         render_cards([
-            ("S&P 500",  data.get("SP500","—"),  data.get("SP500_C","")),
-            ("NASDAQ",   data.get("NASDAQ","—"), data.get("NASDAQ_C","")),
-            ("Dow Jones",data.get("DOW","—"),    data.get("DOW_C","")),
+            ("S&P 500", data.get("SP500", "—"), data.get("SP500_C", "")),
+            ("NASDAQ", data.get("NASDAQ", "—"), data.get("NASDAQ_C", "")),
+            ("Dow Jones", data.get("DOW", "—"), data.get("DOW_C", "")),
         ], cols=1)
     with col_eu:
         st.markdown('<div class="metric-label" style="margin-bottom:8px;">🇪🇺 AVRUPA</div>', unsafe_allow_html=True)
         render_cards([
-            ("DAX (Almanya)",   data.get("DAX","—"),    data.get("DAX_C","")),
-            ("FTSE 100 (UK)",   data.get("FTSE","—"),   data.get("FTSE_C","")),
-            ("BIST 100 (TÜRKİYE)", data.get("BIST100","—"),data.get("BIST100_C","")),
+            ("DAX (Almanya)", data.get("DAX", "—"), data.get("DAX_C", "")),
+            ("FTSE 100 (UK)", data.get("FTSE", "—"), data.get("FTSE_C", "")),
+            ("BIST 100 (TÜRKİYE)", data.get("BIST100", "—"), data.get("BIST100_C", "")),
         ], cols=1)
     with col_asia:
         st.markdown('<div class="metric-label" style="margin-bottom:8px;">🌏 ASYA</div>', unsafe_allow_html=True)
         render_cards([
-            ("Nikkei 225 (JP)", data.get("NIKKEI","—"), data.get("NIKKEI_C","")),
-            ("Hang Seng (HK)",  data.get("HSI","—"),    data.get("HSI_C","")),
+            ("Nikkei 225 (JP)", data.get("NIKKEI", "—"), data.get("NIKKEI_C", "")),
+            ("Hang Seng (HK)", data.get("HSI", "—"), data.get("HSI_C", "")),
         ], cols=1)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── BÖLÜM C: Emtialar ─────────────────────────────────
     cat("EMTİALAR — GLOBAL HAM MADDE", "🏭")
     col_metal, col_enerji = st.columns(2)
     with col_metal:
         st.markdown('<div class="metric-label" style="margin-bottom:8px;">METALLER</div>', unsafe_allow_html=True)
         render_cards([
-            ("Altın / oz",  data.get("GOLD","—"),   data.get("GOLD_C","")),
-            ("Gümüş / oz",  data.get("SILVER","—"), data.get("SILVER_C","")),
-            ("Bakır",       data.get("COPPER","—"),  data.get("COPPER_C","")),
+            ("Altın / oz", data.get("GOLD", "—"), data.get("GOLD_C", "")),
+            ("Gümüş / oz", data.get("SILVER", "—"), data.get("SILVER_C", "")),
+            ("Bakır", data.get("COPPER", "—"), data.get("COPPER_C", "")),
         ], cols=1)
     with col_enerji:
         st.markdown('<div class="metric-label" style="margin-bottom:8px;">ENERJİ & TARIM</div>', unsafe_allow_html=True)
         render_cards([
-            ("Ham Petrol (WTI)", data.get("OIL","—"),    data.get("OIL_C","")),
-            ("Doğalgaz",         data.get("NATGAS","—"), data.get("NATGAS_C","")),
-            ("Buğday",           data.get("WHEAT","—"),  data.get("WHEAT_C","")),
+            ("Ham Petrol (WTI)", data.get("OIL", "—"), data.get("OIL_C", "")),
+            ("Doğalgaz", data.get("NATGAS", "—"), data.get("NATGAS_C", "")),
+            ("Buğday", data.get("WHEAT", "—"), data.get("WHEAT_C", "")),
         ], cols=1)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ── BÖLÜM D: Forex ────────────────────────────────────
     cat("DÖVİZ KURLARI", "💱")
     render_cards([
-        ("EUR / USD",    data.get("EURUSD","—"),  data.get("EURUSD_C","")),
-        ("GBP / USD",    data.get("GBPUSD","—"),  data.get("GBPUSD_C","")),
-        ("USD / JPY",    data.get("USDJPY","—"),  data.get("USDJPY_C","")),
-        ("USD / CHF",    data.get("USDCHF","—"),  data.get("USDCHF_C","")),
-        ("AUD / USD",    data.get("AUDUSD","—"),  data.get("AUDUSD_C","")),
-        ("USD / TRY",    data.get("USDTRY","—"),  data.get("USDTRY_C","")),
+        ("EUR / USD", data.get("EURUSD", "—"), data.get("EURUSD_C", "")),
+        ("GBP / USD", data.get("GBPUSD", "—"), data.get("GBPUSD_C", "")),
+        ("USD / JPY", data.get("USDJPY", "—"), data.get("USDJPY_C", "")),
+        ("USD / CHF", data.get("USDCHF", "—"), data.get("USDCHF_C", "")),
+        ("AUD / USD", data.get("AUDUSD", "—"), data.get("AUDUSD_C", "")),
+        ("USD / TRY", data.get("USDTRY", "—"), data.get("USDTRY_C", "")),
     ], cols=3)
-
-
 # ── TAB 3: GRAFİK & RAPOR ────────────────────────────────────
 with tab3:
     col_chart, col_side = st.columns([2.2, 1.2])
@@ -1166,6 +1517,12 @@ TEMEL KURALLAR:
 - Tüm veri kategorilerini (makro, türev, on-chain, ETF, forex, emtia, altcoin) mutlaka kullan.
 - "Dikkatli ol" gibi genel laflar yerine somut aksiyon ver.
 
+YAZIM KURALLARI:
+- Asla "bu rapor yatırım tavsiyesi değildir" veya benzeri yasal uyarı yazma.
+- Asla LaTeX formatı ($65,000 yerine $65.000 gibi) kullanma, düz metin yaz.
+- Markdown formatı kullan: **kalın**, başlıklar için ## kullan.
+- Fiyatları her zaman düz yazı olarak yaz: 65000 dolar veya $65,000
+
 ━━━━━━━━ CANLI VERİLER ({bugun}) ━━━━━━━━
 
 📌 BİTCOİN:
@@ -1189,11 +1546,11 @@ Tahta Durumu: {data.get('Wall_Status','—')}
 📌 KORKU & DUYGU:
 Fear & Greed Index: {data.get('FNG','—')} (dün: {data.get('FNG_PREV','—')})
 
-📌 BİTCOİN ETF (Kurumsal Akış):
-IBIT (BlackRock): {data.get('IBIT_P','—')} | {data.get('IBIT_C','—')} | Akış: {data.get('IBIT_Flow','—')} | Hacim: {data.get('IBIT_Vol','—')}
-FBTC (Fidelity): {data.get('FBTC_P','—')} | {data.get('FBTC_C','—')}
-BITB (Bitwise): {data.get('BITB_P','—')} | {data.get('BITB_C','—')}
-ARKB (ARK): {data.get('ARKB_P','—')} | {data.get('ARKB_C','—')}
+📌 GÜNLÜK ETF NETFLOW (Farside):
+Tarih: {data.get('ETF_FLOW_DATE','—')} | Toplam: {data.get('ETF_FLOW_TOTAL','—')}
+IBIT: {data.get('ETF_FLOW_IBIT','—')} | FBTC: {data.get('ETF_FLOW_FBTC','—')} | BITB: {data.get('ETF_FLOW_BITB','—')} | ARKB: {data.get('ETF_FLOW_ARKB','—')}
+BTCO: {data.get('ETF_FLOW_BTCO','—')} | EZBC: {data.get('ETF_FLOW_EZBC','—')} | BRRR: {data.get('ETF_FLOW_BRRR','—')} | HODL: {data.get('ETF_FLOW_HODL','—')}
+BTCW: {data.get('ETF_FLOW_BTCW','—')} | GBTC: {data.get('ETF_FLOW_GBTC','—')} | BTC: {data.get('ETF_FLOW_BTC','—')}
 
 📌 STABLECOİN LİKİDİTESİ:
 Toplam: {data.get('Total_Stable','—')} | USDT: {data.get('USDT_MCap','—')} | USDC: {data.get('USDC_MCap','—')} | DAI: {data.get('DAI_MCap','—')}
@@ -1263,8 +1620,8 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 - Direnç duvarı {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}): kırılabilir mi?
 
 **🏦 3. KURUMSAL AKIŞ & LİKİDİTE ANALİZİ**
-- IBIT akış {data.get('IBIT_Flow','—')}: kurumsal para girişi/çıkışı trendi ne?
-- Toplam ETF hacmi ve yönü BTC fiyatıyla örtüşüyor mu?
+- Günlük ETF netflow {data.get('ETF_FLOW_TOTAL','—')} ({data.get('ETF_FLOW_DATE','—')}): kurumsal para girişi/çıkışı trendi ne?
+- ETF bazlı akış dağılımı BTC fiyatıyla örtüşüyor mu?
 - Stablecoin toplam {data.get('Total_Stable','—')}: piyasaya hazır "barut" var mı?
 - USDT.D {data.get('USDT_D','—')}: yüksek mi alçak mı, altcoin sezonu sinyali veriyor mu?
 - Likidite analizi: para kripto'ya mı giriyor, stablecoin'de mi bekliyor?
@@ -1304,9 +1661,9 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 """
                 try:
                     resp = client.chat.completions.create(
-                        model="google/gemini-2.5-flash-preview",
+                        model="google/gemini-2.5-flash",
                         messages=[{"role": "user", "content": prompt}],
-                        max_tokens=4000
+                        max_tokens=8000
                     )
                     rapor_md = resp.choices[0].message.content
                     st.markdown(f'<div class="report-box">{rapor_md}</div>', unsafe_allow_html=True)
@@ -1358,8 +1715,13 @@ with tab5:
             ("Destek Duvarı","Sup_Wall"),("Destek Hacim","Sup_Vol"),
             ("Direnç Duvarı","Res_Wall"),("Direnç Hacim","Res_Vol"),
             ("Tahta Durumu","Wall_Status"),
-            ("IBIT","IBIT_P"),("IBIT 24s","IBIT_C"),("IBIT Akış","IBIT_Flow"),
-            ("FBTC","FBTC_P"),("BITB","BITB_P"),("ARKB","ARKB_P"),
+            ("ETF Tarih","ETF_FLOW_DATE"),("ETF Netflow Toplam","ETF_FLOW_TOTAL"),
+            ("IBIT Netflow","ETF_FLOW_IBIT"),("FBTC Netflow","ETF_FLOW_FBTC"),
+            ("BITB Netflow","ETF_FLOW_BITB"),("ARKB Netflow","ETF_FLOW_ARKB"),
+            ("BTCO Netflow","ETF_FLOW_BTCO"),("EZBC Netflow","ETF_FLOW_EZBC"),
+            ("BRRR Netflow","ETF_FLOW_BRRR"),("HODL Netflow","ETF_FLOW_HODL"),
+            ("BTCW Netflow","ETF_FLOW_BTCW"),("GBTC Netflow","ETF_FLOW_GBTC"),
+            ("BTC Netflow","ETF_FLOW_BTC"),
         ],
         "💵 Stablecoin & On-Chain": [
             ("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),
