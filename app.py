@@ -416,65 +416,77 @@ def veri_motoru():
         except:
             v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"; v[f"{sym}_Vol"]="—"
 
-    # Farside — gerçek günlük net ETF akış verileri
+    # Gerçek Günlük Net ETF Akış — SoSoValue (birincil) + Farside (yedek)
+    etf_flow_done = False
+
+    # Kaynak 1: SoSoValue public API
     try:
-        from bs4 import BeautifulSoup
-        fs = requests.get(
-            "https://farside.co.uk/bitcoin-etf/",
-            headers={**HEADERS, "Referer": "https://farside.co.uk/"},
-            timeout=10
-        ).text
-        soup = BeautifulSoup(fs, "html.parser")
-        table = soup.find("table")
-        rows  = table.find_all("tr") if table else []
+        sv = requests.get(
+            "https://sosovalue.com/api/etf/us-btc-spot/flow-history?range=1D",
+            headers={**HEADERS, "Origin": "https://sosovalue.com"},
+            timeout=8
+        ).json()
+        # SoSoValue yanıt yapısı: {data: [{date, IBIT, FBTC, ...total}]}
+        items = sv.get("data") or sv.get("list") or []
+        if items:
+            last = items[-1]
+            def fmt_flow(val):
+                if val is None: return "—"
+                try:
+                    v2 = float(val)
+                    return f"{'📈 +' if v2 > 0 else '📉 '}{abs(v2):.1f}M $"
+                except: return "—"
+            for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
+                v[f"{etf}_Flow"] = fmt_flow(last.get(etf) or last.get(etf.lower()))
+            total = last.get("total") or last.get("Total")
+            v["ETF_Total_Flow"] = fmt_flow(total)
+            v["ETF_Total_Raw"]  = float(total) if total else None
+            v["ETF_Flow_Date"]  = str(last.get("date",""))[:10]
+            etf_flow_done = True
+    except: pass
 
-        # Son satır = en güncel gün
-        # Sütun sırası: Date, IBIT, FBTC, BITB, ARKB, BTCO, EZBC, BRRR, HODL, DEFI, GBTC, BTC, Total
-        etf_cols = ["Date","IBIT","FBTC","BITB","ARKB","BTCO","EZBC","BRRR","HODL","DEFI","GBTC","BTC","Total"]
-
-        # Başlık satırını atla, son dolu satırı bul
-        last_row = None
-        for row in reversed(rows):
-            cells = [td.get_text(strip=True) for td in row.find_all(["td","th"])]
-            if cells and cells[0] and cells[0][0].isdigit():
-                last_row = cells
-                break
-
-        if last_row:
+    # Kaynak 2: Farside scrape
+    if not etf_flow_done:
+        try:
+            from bs4 import BeautifulSoup
+            fs = requests.get(
+                "https://farside.co.uk/bitcoin-etf/",
+                headers={**HEADERS,
+                         "Referer": "https://farside.co.uk/",
+                         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"},
+                timeout=12
+            ).text
+            soup  = BeautifulSoup(fs, "html.parser")
+            table = soup.find("table")
+            rows  = table.find_all("tr") if table else []
+            etf_cols = ["Date","IBIT","FBTC","BITB","ARKB","BTCO","EZBC","BRRR","HODL","DEFI","GBTC","BTC","Total"]
+            last_row = None
+            for row in reversed(rows):
+                cells = [td.get_text(strip=True) for td in row.find_all(["td","th"])]
+                if cells and cells[0] and cells[0][0].isdigit():
+                    last_row = cells; break
             def parse_flow(val):
-                """'(94.7)' → -94.7, '123.4' → 123.4, '-' → None"""
                 val = val.strip().replace(",","")
                 if not val or val == "-": return None
-                if val.startswith("(") and val.endswith(")"):
-                    return -float(val[1:-1])
+                if val.startswith("(") and val.endswith(")"): return -float(val[1:-1])
                 try: return float(val)
                 except: return None
-
-            flow_map = {}
-            for i, col in enumerate(etf_cols):
-                if i < len(last_row):
-                    flow_map[col] = parse_flow(last_row[i])
-
-            v["ETF_Flow_Date"] = last_row[0] if last_row else "—"
-
-            # Her ETF için flow string
             def fmt_flow(val):
                 if val is None: return "—"
                 return f"{'📈 +' if val > 0 else '📉 '}{abs(val):.1f}M $"
+            if last_row:
+                fm = {col: parse_flow(last_row[i]) for i, col in enumerate(etf_cols) if i < len(last_row)}
+                v["ETF_Flow_Date"] = last_row[0]
+                for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
+                    v[f"{etf}_Flow"] = fmt_flow(fm.get(etf))
+                v["ETF_Total_Flow"] = fmt_flow(fm.get("Total"))
+                v["ETF_Total_Raw"]  = fm.get("Total")
+                etf_flow_done = True
+        except: pass
 
-            for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
-                v[f"{etf}_Flow"] = fmt_flow(flow_map.get(etf))
-
-            total = flow_map.get("Total")
-            v["ETF_Total_Flow"] = fmt_flow(total)
-            v["ETF_Total_Raw"]  = total  # sayısal karşılaştırma için
-        else:
-            raise ValueError("Satır bulunamadı")
-
-    except Exception:
-        # Fallback: tüm flow değerleri "—"
+    if not etf_flow_done:
         for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
-            if f"{etf}_Flow" not in v: v[f"{etf}_Flow"] = "—"
+            v[f"{etf}_Flow"] = "—"
         v["ETF_Total_Flow"] = "—"
         v["ETF_Total_Raw"]  = None
         v["ETF_Flow_Date"]  = "—"
@@ -982,18 +994,18 @@ with tab1:
         flow_color = "var(--green)" if "📈" in flow else ("var(--red)" if "📉" in flow else "var(--muted)")
 
         with cols_etf[i % 5]:
-            st.markdown(f"""
-            <div class="metric-card" style="margin-bottom:8px;">
-                <div class="metric-label">{sym} — {issuer}</div>
-                <div class="metric-value">{price}</div>
-                <div style="color:{chg_color}; font-size:0.72em; font-family:var(--mono); margin-top:2px;">
-                    {chg_arrow} {change}
-                </div>
-                <div style="color:{flow_color}; font-size:0.72em; font-family:var(--mono); margin-top:4px; border-top:1px solid var(--border); padding-top:4px;">
-                    Flow: {flow}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="metric-card" style="margin-bottom:8px;">'
+                f'<div class="metric-label">{sym} — {issuer}</div>'
+                f'<div class="metric-value">{price}</div>'
+                f'<div style="color:{chg_color};font-size:0.72em;font-family:var(--mono);margin-top:2px;">'
+                f'{chg_arrow} {change}</div>'
+                f'<div style="color:{flow_color};font-size:0.72em;font-family:var(--mono);'
+                f'margin-top:4px;border-top:1px solid #1a2d4a;padding-top:4px;">'
+                f'Flow: {flow}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
