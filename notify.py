@@ -228,26 +228,37 @@ def veri_cek():
 
 def takvim_cek():
     try:
-        rss = requests.get("https://tradingeconomics.com/rss/calendar.aspx", headers=HEADERS, timeout=8).text
+        rss = jtxt("https://tradingeconomics.com/rss/calendar.aspx", 8)
         titles = re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", rss)[1:15]
         kritik = [t for t in titles if any(k in t for k in ["USD","EUR","Fed","CPI","NFP","GDP","PMI","FOMC","Powell","Interest Rate","Inflation"])]
         return kritik[:5] if kritik else titles[:4]
     except:
-        return ["Takvim verisi simdilik alinamadi."]
+        try:
+            rss = jtxt("https://nfs.faireconomy.media/ff_calendar_thisweek.xml", 8)
+            titles = re.findall(r"<title>(.*?)</title>", rss)[1:10]
+            return titles[:5] if titles else ["Takvim verisi simdilik alinamadi."]
+        except:
+            return ["Takvim verisi simdilik alinamadi."]
 
 def haber_cek():
     try:
-        rss = requests.get("https://www.coindesk.com/arc/outboundfeeds/rss/", headers=HEADERS, timeout=8).text
+        rss = jtxt("https://www.coindesk.com/arc/outboundfeeds/rss/", 8)
         return re.findall(r"<title><!\[CDATA\[(.*?)\]\]></title>", rss)[1:6]
-    except: return []
+    except:
+        try:
+            data = jget("https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=latest&limit=5", 8)
+            return [item["title"] for item in data.get("Data", [])[:5]]
+        except:
+            return []
 
 def ai_raporu(v, takvim, haberler):
     bugun = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%d %B %Y, %A")
     takvim_str = "\n".join(f"- {x}" for x in takvim) if takvim else "- Veri yok"
     haber_str = "\n".join(f"- {x}" for x in haberler) if haberler else "- Haber yok"
     prompt = f"""
-Sen SA Finance Alpha Terminal icin sabah bulteni yazan deneyimli bir makro-kripto fon yoneticisisin.
-Turkce, profesyonel, rakamsal ve Telegram'a uygun bir bulten yaz. Her iddiayi sayi ile destekle.
+Sen SA Finance Alpha Terminal icin sabah bulteni yazan Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisi ve quant analistsin.
+Turkce, profesyonel, rakamsal bir bulten yaz. Her iddiayi sayi ile destekle. Derinlikli, rakamsal ve eyleme dönüşebilir bir bülten yaz.
+Asagidaki basliklari aynen kullan ve hicbirini atlama.
 
 TARIH: {bugun}
 BTC: {v.get('BTC_P','—')} | 24s {v.get('BTC_C','—')} | 7g {v.get('BTC_7D','—')} | Hacim {v.get('Vol_24h','—')}
@@ -268,20 +279,48 @@ TAKVIM:
 HABERLER:
 {haber_str}
 
-Su yapiyla yaz:
-1. Baslik: SA Finance Alpha Terminal Sabah Bulteni
-2. Makro ortam ve risk istahi
-3. BTC + turev + order book analizi
-4. ETF + stablecoin + market cap breadth likidite yorumu
-5. Altcoin ve dominance yorumu
-6. Long / short / bekle senaryolari
-7. Bugunun en kritik riski
+ZORUNLU KURALLAR:
+- Tam olarak asagidaki 7 basligi kullan.
+- Her baslik altinda en az 2 cumle olsun.
+- 5. bolum, TAKVIM listesinden en az bir maddeyi anip olasi piyasa etkisini yorumlasin.
+- 6. bolum, HABERLER listesinden en az bir maddeyi anip BTC/kripto etkisini yorumlasin.
+- Eger takvim veya haber verisi zayifsa bunu acikca belirt ama yine de o bolumu yaz.
+- Long, short ve bekle senaryolarinda net seviye ya da kosul ver.
+- Zaman ufuklarini karistirma: 7 gunluk kiyas sadece 7g verilerle yapilsin; 24 saatlik momentum yorumu sadece 24s verilerle yapilsin.
+- Altcoin relatif guc analizinde BTC ile altcoinleri ayni periyotta karsilastir. BTC 7g kullaniliyorsa ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin de 7g verileri kullan.
+- Eger 24s ile 7g farkli hikaye anlatiyorsa bunu acikca ayir: once 7g trendi, sonra 24s kisa vadeli momentum.
+- Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
+- Tüm veri kategorilerini mutlaka kullan.
+
+KULLANILACAK BASLIKLAR:
+1. SA Finance Alpha Terminal Sabah Bulteni
+2. Makro Ortam ve Risk Istahi
+3. BTC, Turev ve Order Book Analizi
+4. ETF, Stablecoin ve Market Cap Breadth
+5. Ekonomik Takvim ve Olasi Etkiler
+6. Onemli Haberler ve Piyasa Yorumu
+7. Long / Short / Bekle ve Kritik Risk
 """
     resp = client.chat.completions.create(model="google/gemini-2.5-flash", messages=[{"role":"user","content":prompt}], max_tokens=8000)
     return resp.choices[0].message.content
 
 def telegram_gonder(mesaj):
-    for part in [mesaj[i:i+4000] for i in range(0, len(mesaj), 4000)]:
+    parts = []
+    remaining = mesaj.strip()
+    limit = 3600
+    while remaining:
+        if len(remaining) <= limit:
+            parts.append(remaining)
+            break
+        split_at = remaining.rfind("\n\n", 0, limit)
+        if split_at == -1:
+            split_at = remaining.rfind("\n", 0, limit)
+        if split_at == -1:
+            split_at = limit
+        parts.append(remaining[:split_at].strip())
+        remaining = remaining[split_at:].strip()
+
+    for part in parts:
         r = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={"chat_id":TELEGRAM_CHAT_ID,"text":part,"parse_mode":"Markdown"}, timeout=10)
         if not r.ok:
             r2 = requests.post(f"https://api.telegram.org/bot{TELEGRAM_TOKEN}/sendMessage", json={"chat_id":TELEGRAM_CHAT_ID,"text":part}, timeout=10)
