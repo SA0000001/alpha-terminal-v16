@@ -297,7 +297,7 @@ ZORUNLU KURALLAR:
 - VIX ve M2 icin haftalik, onceki hafta, degisim hizi veya yuzdesel periyot farki uydurma. Elinde sadece mevcut seviye varsa yalnizca mevcut seviyeyi yorumla.
 - VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen M2 degeri kullanilabilir. Gecen hafta, onceki ay, gunluk degisim veya trend hizi uydurulamaz.
 - TOTAL, TOTAL2, TOTAL3 ve OTHERS tanimlarini yukaridaki gibi kullan; TOTAL3'u asla ilk 10 disi olarak anlatma. OTHERS'i asla BTC ve ETH harici toplam piyasa degeri olarak anlatma.
-- Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
+- Her iddiayı mutlaka rakamla destekle. Örnek; "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
 - Tüm veri kategorilerini mutlaka kullan.
 
 - Makro bolumde yalnizca terminalde gunluk degisimi olan metriklerde gunluk yuzde degisimi kullan: US10Y_C, DXY_C, VIX_C, SP500_C, NASDAQ_C, DAX_C, NIKKEI_C, EURUSD_C, USDJPY_C, USDTRY_C, GOLD_C, SILVER_C, OIL_C, NATGAS_C.
