@@ -618,6 +618,14 @@ def fetch_text_without_env_proxy(url, timeout=20):
     return response.text
 
 
+def fetch_json_without_env_proxy(url, timeout=20):
+    session = requests.Session()
+    session.trust_env = False
+    response = session.get(url, headers=HEADERS, timeout=timeout)
+    response.raise_for_status()
+    return response.json()
+
+
 def parse_latest_etf_flow_row(flow_text):
     flow_rows = [
         line.strip()
@@ -1040,7 +1048,7 @@ def veri_motoru():
         v["Wall_Status"]="—"; v["BTC_Now"]="—"
 
     try:
-        bn = requests.get("https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=5000", timeout=8).json()
+        bn = fetch_json_without_env_proxy("https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=5000", timeout=8)
         bids = [(float(p), float(q)) for p, q in bn["bids"]]
         asks = [(float(p), float(q)) for p, q in bn["asks"]]
         binance_levels = extract_wall_levels(bids, asks)
