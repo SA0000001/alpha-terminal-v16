@@ -273,7 +273,8 @@ ENDEKSLER: SP500 {v.get('SP500','—')} ({v.get('SP500_C','—')}) | NASDAQ {v.g
 FOREX: EURUSD {v.get('EURUSD','—')} | USDJPY {v.get('USDJPY','—')} | USDTRY {v.get('USDTRY','—')}
 EMTIALAR: GOLD {v.get('GOLD','—')} | SILVER {v.get('SILVER','—')} | OIL {v.get('OIL','—')} | NATGAS {v.get('NATGAS','—')}
 ONCHAIN: Hash {v.get('Hash','—')} | Active {v.get('BTC_Active','—')} | Corr SP500 {v.get('Corr_SP500','—')} | Corr Gold {v.get('Corr_Gold','—')}
-ALTCOINS: ETH {v.get('ETH_C','—')} | SOL {v.get('SOL_C','—')} | BNB {v.get('BNB_C','—')} | XRP {v.get('XRP_C','—')} | ADA {v.get('ADA_C','—')} | AVAX {v.get('AVAX_C','—')}
+ALTCOIN_7G: ETH {v.get('ETH_7D','—')} | SOL {v.get('SOL_7D','—')} | BNB {v.get('BNB_7D','—')} | XRP {v.get('XRP_7D','—')} | ADA {v.get('ADA_7D','—')} | AVAX {v.get('AVAX_7D','—')} | LINK {v.get('LINK_7D','—')} | DOT {v.get('DOT_7D','—')}
+ALTCOIN_24S: ETH {v.get('ETH_C','—')} | SOL {v.get('SOL_C','—')} | BNB {v.get('BNB_C','—')} | XRP {v.get('XRP_C','—')} | ADA {v.get('ADA_C','—')} | AVAX {v.get('AVAX_C','—')} | LINK {v.get('LINK_C','—')} | DOT {v.get('DOT_C','—')}
 TAKVIM:
 {takvim_str}
 HABERLER:
@@ -289,6 +290,8 @@ ZORUNLU KURALLAR:
 - Zaman ufuklarini karistirma: 7 gunluk kiyas sadece 7g verilerle yapilsin; 24 saatlik momentum yorumu sadece 24s verilerle yapilsin.
 - Altcoin relatif guc analizinde BTC ile altcoinleri ayni periyotta karsilastir. BTC 7g kullaniliyorsa ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin de 7g verileri kullan.
 - Eger 24s ile 7g farkli hikaye anlatiyorsa bunu acikca ayir: once 7g trendi, sonra 24s kisa vadeli momentum.
+- Haftalik altcoin yorumu yazarken yalnizca ALTCOIN_7G satirini kullan. ALTCOIN_24S satiri haftalik sonuc cikarmak icin kullanilamaz.
+- 7 gunluk relatif guc cumlesinde ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin yazilan her yuzde mutlaka ilgili 7g veri satirindaki sayiyla ayni olmali.
 - Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
 - Tüm veri kategorilerini mutlaka kullan.
 
