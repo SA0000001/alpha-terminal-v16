@@ -1042,6 +1042,12 @@ TEMEL KURALLAR:
 - Tüm veri kategorilerini (makro, türev, on-chain, ETF, forex, emtia, altcoin) mutlaka kullan.
 - "Dikkatli ol" gibi genel laflar yerine somut aksiyon ver.
 
+YAZIM KURALLARI:
+- Asla "bu rapor yatırım tavsiyesi değildir" veya benzeri yasal uyarı yazma.
+- Asla LaTeX formatı ($65,000 yerine $65.000 gibi) kullanma, düz metin yaz.
+- Markdown formatı kullan: **kalın**, başlıklar için ## kullan.
+- Fiyatları her zaman düz yazı olarak yaz: 65000 dolar veya $65,000
+
 ━━━━━━━━ CANLI VERİLER ({bugun}) ━━━━━━━━
 
 📌 BİTCOİN:
