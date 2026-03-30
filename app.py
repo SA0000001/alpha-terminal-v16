@@ -18,7 +18,7 @@ if not OPENROUTER_API_KEY:
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
 
 st.set_page_config(
-    page_title="Serhat Alpha Terminal",
+    page_title="SA Finance Alpha Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -552,9 +552,7 @@ def parse_number(value):
     if isinstance(value, (int, float)):
         return float(value)
 
-    raw_text = str(value).strip()
-    negative_by_parens = raw_text.startswith("(") and raw_text.endswith(")")
-    cleaned = re.sub(r"[^0-9,.\-+]", "", raw_text)
+    cleaned = re.sub(r"[^0-9,.\-+]", "", str(value))
     if not cleaned:
         return None
 
@@ -569,8 +567,7 @@ def parse_number(value):
         cleaned = cleaned.replace(",", "")
 
     try:
-        number = float(cleaned)
-        return -abs(number) if negative_by_parens else number
+        return float(cleaned)
     except Exception:
         return None
 
@@ -582,29 +579,6 @@ def badge_class(text: str):
     if any(word in text for word in ["short", "baskı", "direnç", "savunmacı", "negatif"]):
         return "signal-short"
     return "signal-neutral"
-
-
-ETF_FLOW_COLUMNS = ("IBIT", "FBTC", "BITB", "ARKB", "BTCO", "EZBC", "BRRR", "HODL", "BTCW", "GBTC", "BTC", "TOTAL")
-
-
-def format_flow_millions(value):
-    number = parse_number(value)
-    if number is None:
-        return "—"
-    sign = "+" if number > 0 else ""
-    return f"{sign}{number:.1f}M $"
-
-
-def build_etf_flow_df(data):
-    return pd.DataFrame(
-        [
-            {
-                "ETF": "Total" if symbol == "TOTAL" else symbol,
-                "Netflow (US$m)": data.get(f"ETF_FLOW_{symbol}", "—"),
-            }
-            for symbol in ETF_FLOW_COLUMNS
-        ]
-    )
 
 
 def render_info_panel(kicker: str, title: str, rows, badge_text: str = "", badge_kind: str = "signal-neutral", copy: str = ""):
@@ -634,9 +608,7 @@ def build_market_brief(data):
     funding = parse_number(data.get("FR"))
     usdt_d = parse_number(data.get("USDT_D"))
     vix = parse_number(data.get("VIX"))
-    etf_flow_total = data.get("ETF_FLOW_TOTAL", "—")
-    etf_flow_num = parse_number(etf_flow_total)
-    etf_flow_date = data.get("ETF_FLOW_DATE", "—")
+    ibit_flow = data.get("IBIT_Flow", "—")
     ls_signal = data.get("LS_Signal", "—")
     wall_status = data.get("Wall_Status", "—")
 
@@ -690,19 +662,19 @@ def build_market_brief(data):
             "class": badge_class(ls_signal),
         }
 
-    if etf_flow_num is not None and etf_flow_num > 0 and (usdt_d is None or usdt_d < 7):
+    if "+" in ibit_flow and (usdt_d is None or usdt_d < 7):
         liquidity = {
             "label": "Likidite",
             "title": "Risk Sermayesi Akıyor",
-            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "detail": f"IBIT {ibit_flow} · Stable {data.get('Total_Stable', '—')} · USDT.D {data.get('USDT_D', '—')}",
             "badge": "FLOW",
             "class": "signal-long",
         }
-    elif (etf_flow_num is not None and etf_flow_num < 0) or (usdt_d is not None and usdt_d >= 7):
+    elif "-" in ibit_flow or (usdt_d is not None and usdt_d >= 7):
         liquidity = {
             "label": "Likidite",
             "title": "Savunmacı Konumlanma",
-            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "detail": f"IBIT {ibit_flow} · Stable {data.get('Total_Stable', '—')} · USDT.D {data.get('USDT_D', '—')}",
             "badge": "CASH",
             "class": "signal-short",
         }
@@ -710,7 +682,7 @@ def build_market_brief(data):
         liquidity = {
             "label": "Likidite",
             "title": "Likidite Kararsız",
-            "detail": f"ETF Netflow {etf_flow_total} · {etf_flow_date} · USDT.D {data.get('USDT_D', '—')}",
+            "detail": f"IBIT {ibit_flow} · Stable {data.get('Total_Stable', '—')} · USDT.D {data.get('USDT_D', '—')}",
             "badge": "WATCH",
             "class": "signal-neutral",
         }
@@ -828,7 +800,7 @@ def veri_motoru():
     except:
         v["ETH_Dom"] = "—"
 
-    # 4. BTC ETF fiyatlari (yFinance) + gunluk netflow (Farside)
+    # 4. BTC ETF (yFinance)
     for sym in ["IBIT","FBTC","BITB","ARKB"]:
         try:
             df   = yf.Ticker(sym).history(period="10d")
@@ -837,37 +809,12 @@ def veri_motoru():
             v[f"{sym}_P"]   = f"${curr:.2f}"
             v[f"{sym}_C"]   = f"{(curr-prev)/prev*100:.2f}%"
             v[f"{sym}_Vol"] = f"{int(df['Volume'].iloc[-1]):,}"
+            if sym == "IBIT":
+                flow = int(df["Volume"].iloc[-1]) * (curr - prev)
+                v["IBIT_Flow"] = f"{'📈 +' if flow>0 else '📉 '}{abs(flow/1e6):.1f}M $"
         except:
             v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"; v[f"{sym}_Vol"]="—"
-
-    for symbol in ETF_FLOW_COLUMNS:
-        v[f"ETF_FLOW_{symbol}"] = "—"
-    v["ETF_FLOW_DATE"] = "—"
-
-    for flow_url in [
-        "https://farside.co.uk/bitcoin-etf-flow-all-data/",
-        "https://r.jina.ai/http://farside.co.uk/bitcoin-etf-flow-all-data/",
-    ]:
-        try:
-            flow_text = requests.get(flow_url, headers=HEADERS, timeout=20).text
-            flow_rows = [
-                line.strip()
-                for line in flow_text.splitlines()
-                if re.match(r"^\|\s*\d{2}\s+[A-Za-z]{3}\s+\d{4}\s*\|", line.strip())
-            ]
-            if not flow_rows:
-                continue
-
-            latest_row = [part.strip() for part in flow_rows[-1].split("|")[1:-1]]
-            if len(latest_row) < len(ETF_FLOW_COLUMNS) + 1:
-                continue
-
-            v["ETF_FLOW_DATE"] = latest_row[0]
-            for symbol, raw_value in zip(ETF_FLOW_COLUMNS, latest_row[1:1 + len(ETF_FLOW_COLUMNS)]):
-                v[f"ETF_FLOW_{symbol}"] = format_flow_millions(raw_value)
-            break
-        except:
-            pass
+    if "IBIT_Flow" not in v: v["IBIT_Flow"]="—"
 
     # 5. Hisse endeksleri
     endeksler = {
@@ -1141,7 +1088,7 @@ st.markdown(
     <div class="terminal-header">
         <div>
             <div class="hero-kicker">Digital Asset Intelligence</div>
-            <h1>⚡ Serhat Alpha Terminal</h1>
+            <h1>⚡ SA Finance Alpha Terminal</h1>
             <div class="header-subtitle">
                 Kripto, makro ve likidite verilerini tek ekranda toplayan daha net bir karar paneli.
                 Önce kısa özeti gör, sonra sekmelerde detaya in.
@@ -1206,7 +1153,7 @@ with st.sidebar:
         [
             ("Ana destek", f"{data.get('Sup_Wall', '—')} · {data.get('Sup_Vol', '—')}"),
             ("Ana direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
-            ("Günlük ETF Netflow", f"{data.get('ETF_FLOW_TOTAL', '—')} · {data.get('ETF_FLOW_DATE', '—')}"),
+            ("IBIT akışı", data.get("IBIT_Flow", "—")),
             ("USD/TRY", data.get("USDTRY", "—")),
         ],
         badge_text=brief["focus"]["badge"],
@@ -1298,7 +1245,7 @@ with tab1:
         ("Fear & Greed", data.get("FNG", "—"), ""),
         ("Funding Rate", data.get("FR", "—"), ""),
         ("Open Interest", data.get("OI", "—"), ""),
-        ("Günlük ETF Netflow", data.get("ETF_FLOW_TOTAL", "—"), data.get("ETF_FLOW_DATE", "—")),
+        ("IBIT Akışı", data.get("IBIT_Flow", "—"), ""),
         ("BTC Dominance", data.get("Dom", "—"), ""),
         ("ETH Dominance", data.get("ETH_Dom", "—"), ""),
         ("Taker B/S", data.get("Taker", "—"), ""),
@@ -1345,9 +1292,12 @@ with tab1:
     cat("KURUMSAL AKIŞ & LİKİDİTE", "🏦")
     col_etf, col_liquidity = st.columns([1.25, 1])
     with col_etf:
-        st.markdown("#### Günlük ETF Netflow")
-        st.caption(f"Kaynak: Farside · {data.get('ETF_FLOW_DATE', '—')}")
-        st.dataframe(build_etf_flow_df(data), use_container_width=True, hide_index=True)
+        render_cards([
+            ("IBIT — BlackRock", data.get("IBIT_P", "—"), data.get("IBIT_C", "")),
+            ("FBTC — Fidelity", data.get("FBTC_P", "—"), data.get("FBTC_C", "")),
+            ("BITB — Bitwise", data.get("BITB_P", "—"), data.get("BITB_C", "")),
+            ("ARKB — ARK Invest", data.get("ARKB_P", "—"), data.get("ARKB_C", "")),
+        ], cols=2)
     with col_liquidity:
         render_info_panel(
             "Dry Powder",
@@ -1362,7 +1312,7 @@ with tab1:
             ],
             badge_text=brief["liquidity"]["title"],
             badge_kind=brief["liquidity"]["class"],
-            copy=f"Günlük ETF netflow {data.get('ETF_FLOW_TOTAL', '—')} ({data.get('ETF_FLOW_DATE', '—')}) ile stablecoin büyüklüğü aynı panelde, likidite yönü daha okunaklı.",
+            copy=f"IBIT akışı {data.get('IBIT_Flow', '—')} ile stablecoin büyüklüğü aynı panelde, likidite yönü daha okunaklı.",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1546,11 +1496,11 @@ Tahta Durumu: {data.get('Wall_Status','—')}
 📌 KORKU & DUYGU:
 Fear & Greed Index: {data.get('FNG','—')} (dün: {data.get('FNG_PREV','—')})
 
-📌 GÜNLÜK ETF NETFLOW (Farside):
-Tarih: {data.get('ETF_FLOW_DATE','—')} | Toplam: {data.get('ETF_FLOW_TOTAL','—')}
-IBIT: {data.get('ETF_FLOW_IBIT','—')} | FBTC: {data.get('ETF_FLOW_FBTC','—')} | BITB: {data.get('ETF_FLOW_BITB','—')} | ARKB: {data.get('ETF_FLOW_ARKB','—')}
-BTCO: {data.get('ETF_FLOW_BTCO','—')} | EZBC: {data.get('ETF_FLOW_EZBC','—')} | BRRR: {data.get('ETF_FLOW_BRRR','—')} | HODL: {data.get('ETF_FLOW_HODL','—')}
-BTCW: {data.get('ETF_FLOW_BTCW','—')} | GBTC: {data.get('ETF_FLOW_GBTC','—')} | BTC: {data.get('ETF_FLOW_BTC','—')}
+📌 BİTCOİN ETF (Kurumsal Akış):
+IBIT (BlackRock): {data.get('IBIT_P','—')} | {data.get('IBIT_C','—')} | Akış: {data.get('IBIT_Flow','—')} | Hacim: {data.get('IBIT_Vol','—')}
+FBTC (Fidelity): {data.get('FBTC_P','—')} | {data.get('FBTC_C','—')}
+BITB (Bitwise): {data.get('BITB_P','—')} | {data.get('BITB_C','—')}
+ARKB (ARK): {data.get('ARKB_P','—')} | {data.get('ARKB_C','—')}
 
 📌 STABLECOİN LİKİDİTESİ:
 Toplam: {data.get('Total_Stable','—')} | USDT: {data.get('USDT_MCap','—')} | USDC: {data.get('USDC_MCap','—')} | DAI: {data.get('DAI_MCap','—')}
@@ -1620,8 +1570,8 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 - Direnç duvarı {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}): kırılabilir mi?
 
 **🏦 3. KURUMSAL AKIŞ & LİKİDİTE ANALİZİ**
-- Günlük ETF netflow {data.get('ETF_FLOW_TOTAL','—')} ({data.get('ETF_FLOW_DATE','—')}): kurumsal para girişi/çıkışı trendi ne?
-- ETF bazlı akış dağılımı BTC fiyatıyla örtüşüyor mu?
+- IBIT akış {data.get('IBIT_Flow','—')}: kurumsal para girişi/çıkışı trendi ne?
+- Toplam ETF hacmi ve yönü BTC fiyatıyla örtüşüyor mu?
 - Stablecoin toplam {data.get('Total_Stable','—')}: piyasaya hazır "barut" var mı?
 - USDT.D {data.get('USDT_D','—')}: yüksek mi alçak mı, altcoin sezonu sinyali veriyor mu?
 - Likidite analizi: para kripto'ya mı giriyor, stablecoin'de mi bekliyor?
@@ -1715,13 +1665,8 @@ with tab5:
             ("Destek Duvarı","Sup_Wall"),("Destek Hacim","Sup_Vol"),
             ("Direnç Duvarı","Res_Wall"),("Direnç Hacim","Res_Vol"),
             ("Tahta Durumu","Wall_Status"),
-            ("ETF Tarih","ETF_FLOW_DATE"),("ETF Netflow Toplam","ETF_FLOW_TOTAL"),
-            ("IBIT Netflow","ETF_FLOW_IBIT"),("FBTC Netflow","ETF_FLOW_FBTC"),
-            ("BITB Netflow","ETF_FLOW_BITB"),("ARKB Netflow","ETF_FLOW_ARKB"),
-            ("BTCO Netflow","ETF_FLOW_BTCO"),("EZBC Netflow","ETF_FLOW_EZBC"),
-            ("BRRR Netflow","ETF_FLOW_BRRR"),("HODL Netflow","ETF_FLOW_HODL"),
-            ("BTCW Netflow","ETF_FLOW_BTCW"),("GBTC Netflow","ETF_FLOW_GBTC"),
-            ("BTC Netflow","ETF_FLOW_BTC"),
+            ("IBIT","IBIT_P"),("IBIT 24s","IBIT_C"),("IBIT Akış","IBIT_Flow"),
+            ("FBTC","FBTC_P"),("BITB","BITB_P"),("ARKB","ARKB_P"),
         ],
         "💵 Stablecoin & On-Chain": [
             ("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),
