@@ -72,19 +72,62 @@ def veri_cek():
             v[key]="—"; v[f"{key}_C"]="—"
 
     # ── ETF (yFinance — son kapanış) ──────────────────────
-    for sym in ["IBIT","FBTC","BITB","ARKB"]:
+    # ── ETF fiyat (yFinance) + Gerçek Net Flow (Farside) ────
+    for sym in ["IBIT","FBTC","BITB","ARKB","GBTC"]:
         try:
             df   = yf.Ticker(sym).history(period="10d")
             curr = df["Close"].iloc[-1]; prev = df["Close"].iloc[-2]
             v[f"{sym}_P"]   = f"${curr:.2f}"
             v[f"{sym}_C"]   = f"{(curr-prev)/prev*100:.2f}%"
-            v[f"{sym}_Vol"] = f"{int(df['Volume'].iloc[-1]):,}"
-            if sym=="IBIT":
-                flow = int(df["Volume"].iloc[-1])*(curr-prev)
-                v["IBIT_Flow"] = f"{'📈 +' if flow>0 else '📉 '}{abs(flow/1e6):.1f}M $"
         except:
             v[f"{sym}_P"]="—"; v[f"{sym}_C"]="—"
-    if "IBIT_Flow" not in v: v["IBIT_Flow"]="—"
+
+    # Farside — gerçek günlük net ETF akış verileri
+    try:
+        from bs4 import BeautifulSoup
+        fs = requests.get(
+            "https://farside.co.uk/bitcoin-etf/",
+            headers={**HEADERS, "Referer": "https://farside.co.uk/"},
+            timeout=10
+        ).text
+        soup  = BeautifulSoup(fs, "html.parser")
+        table = soup.find("table")
+        rows  = table.find_all("tr") if table else []
+
+        etf_cols = ["Date","IBIT","FBTC","BITB","ARKB","BTCO","EZBC","BRRR","HODL","DEFI","GBTC","BTC","Total"]
+
+        last_row = None
+        for row in reversed(rows):
+            cells = [td.get_text(strip=True) for td in row.find_all(["td","th"])]
+            if cells and cells[0] and cells[0][0].isdigit():
+                last_row = cells
+                break
+
+        def parse_flow(val):
+            val = val.strip().replace(",","")
+            if not val or val == "-": return None
+            if val.startswith("(") and val.endswith(")"): return -float(val[1:-1])
+            try: return float(val)
+            except: return None
+
+        def fmt_flow(val):
+            if val is None: return "—"
+            return f"{'📈 +' if val > 0 else '📉 '}{abs(val):.1f}M $"
+
+        if last_row:
+            flow_map = {col: parse_flow(last_row[i]) for i, col in enumerate(etf_cols) if i < len(last_row)}
+            v["ETF_Flow_Date"] = last_row[0]
+            for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
+                v[f"{etf}_Flow"] = fmt_flow(flow_map.get(etf))
+            v["ETF_Total_Flow"] = fmt_flow(flow_map.get("Total"))
+        else:
+            raise ValueError("Satır yok")
+
+    except Exception:
+        for etf in ["IBIT","FBTC","BITB","ARKB","GBTC","BTCO","HODL","BRRR","EZBC","DEFI"]:
+            if f"{etf}_Flow" not in v: v[f"{etf}_Flow"] = "—"
+        v["ETF_Total_Flow"] = "—"
+        v["ETF_Flow_Date"]  = "—"
 
     # ── Korku/Açgözlülük ─────────────────────────────────
     try:
@@ -353,11 +396,14 @@ Mevcut Fiyat: {v.get('BTC_Now','—')}
 🟢 Destek: {v['Sup_Wall']} — {v['Sup_Vol']} BTC bekliyor
 🔴 Direnç: {v['Res_Wall']} — {v['Res_Vol']} BTC bekliyor
 
-📌 BİTCOİN ETF (Kurumsal Akış):
-IBIT (BlackRock): {v['IBIT_P']} | {v['IBIT_C']} | Akış: {v['IBIT_Flow']} | Hacim: {v.get('IBIT_Vol','—')}
-FBTC (Fidelity): {v['FBTC_P']} | {v['FBTC_C']}
-BITB (Bitwise): {v['BITB_P']} | {v['BITB_C']}
-ARKB (ARK): {v['ARKB_P']} | {v['ARKB_C']}
+📌 BİTCOİN ETF — GÜNLÜK NET AKIŞ ({v.get('ETF_Flow_Date','—')} — Farside):
+TOPLAM NET: {v.get('ETF_Total_Flow','—')}
+IBIT (BlackRock): {v['IBIT_P']} | {v['IBIT_C']} | Flow: {v.get('IBIT_Flow','—')}
+FBTC (Fidelity):  {v['FBTC_P']} | {v['FBTC_C']} | Flow: {v.get('FBTC_Flow','—')}
+BITB (Bitwise):   {v['BITB_P']} | {v['BITB_C']} | Flow: {v.get('BITB_Flow','—')}
+ARKB (ARK):       {v['ARKB_P']} | {v['ARKB_C']} | Flow: {v.get('ARKB_Flow','—')}
+GBTC (Grayscale): {v['GBTC_P']} | {v['GBTC_C']} | Flow: {v.get('GBTC_Flow','—')}
+BTCO/HODL/BRRR/EZBC/DEFI: {v.get('BTCO_Flow','—')} / {v.get('HODL_Flow','—')} / {v.get('BRRR_Flow','—')} / {v.get('EZBC_Flow','—')} / {v.get('DEFI_Flow','—')}
 
 📌 STABLECOİN LİKİDİTESİ (DeFiLlama):
 Toplam: {v['Total_Stable']} | USDT: {v['USDT_MCap']} | USDC: {v['USDC_MCap']}
@@ -422,8 +468,8 @@ Direnç duvarı {v['Res_Wall']} ({v['Res_Vol']} BTC): kırılabilir mi?
 Hashrate {v['Hash']}: ağ sağlığı nasıl?
 
 **🏦 3. ETF & Likidite Akışları**
-IBIT akış {v['IBIT_Flow']}: kurumsal para girişi/çıkışı trendi ne?
-Tüm ETF fiyatları (FBTC {v['FBTC_C']}, BITB {v['BITB_C']}, ARKB {v['ARKB_C']}) ne söylüyor?
+Toplam ETF net akış {v.get('ETF_Total_Flow','—')} ({v.get('ETF_Flow_Date','—')}): piyasaya para giriyor mu çıkıyor mu?
+IBIT {v.get('IBIT_Flow','—')}, FBTC {v.get('FBTC_Flow','—')}, GBTC {v.get('GBTC_Flow','—')}: hangi fon öne çıkıyor?
 Stablecoin toplam {v['Total_Stable']}: piyasaya hazır "barut" var mı?
 USDT {v['USDT_MCap']} + USDC {v['USDC_MCap']}: likidite trendini yorumla.
 
