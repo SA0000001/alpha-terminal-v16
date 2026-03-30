@@ -656,8 +656,12 @@ def extract_wall_levels(bids, asks, noise=250, bucket_size=100):
         raise ValueError("order book is empty")
 
     current_price = bids[0][0]
-    filtered_bids = [(p, q) for p, q in bids if p < current_price - noise] or bids[len(bids) // 2 :]
-    filtered_asks = [(p, q) for p, q in asks if p > current_price + noise] or asks[len(asks) // 2 :]
+    max_distance = current_price * 0.08
+    sane_bids = [(p, q) for p, q in bids if 0 < p <= current_price and (current_price - p) <= max_distance] or bids
+    sane_asks = [(p, q) for p, q in asks if p >= current_price and (p - current_price) <= max_distance] or asks
+
+    filtered_bids = [(p, q) for p, q in sane_bids if p < current_price - noise] or sane_bids[len(sane_bids) // 2 :]
+    filtered_asks = [(p, q) for p, q in sane_asks if p > current_price + noise] or sane_asks[len(sane_asks) // 2 :]
 
     def strongest_bucket(levels, bucket_fn):
         buckets = {}
@@ -685,6 +689,98 @@ def extract_wall_levels(bids, asks, noise=250, bucket_size=100):
         "resistance_price": resistance_price,
         "resistance_volume": resistance_volume,
         "status": status,
+    }
+
+
+def wall_field(prefix, field):
+    return f"{prefix}_{field}" if prefix else field
+
+
+def format_btc_volume(volume):
+    if volume is None:
+        return "—"
+    if volume >= 10:
+        return f"{volume:,.0f} BTC"
+    if volume >= 1:
+        return f"{volume:,.1f} BTC"
+    return f"{volume:,.3f} BTC"
+
+
+def save_wall_levels(target, prefix, levels):
+    target[wall_field(prefix, "Sup_Wall")] = f"${levels['support_price']:,}"
+    target[wall_field(prefix, "Sup_Vol")] = format_btc_volume(levels["support_volume"])
+    target[wall_field(prefix, "Res_Wall")] = f"${levels['resistance_price']:,}"
+    target[wall_field(prefix, "Res_Vol")] = format_btc_volume(levels["resistance_volume"])
+    target[wall_field(prefix, "Wall_Status")] = levels["status"]
+    target[wall_field(prefix, "BTC_Now")] = f"${levels['current_price']:,.0f}"
+
+
+def clear_wall_levels(target, prefix):
+    target[wall_field(prefix, "Sup_Wall")] = "—"
+    target[wall_field(prefix, "Sup_Vol")] = "—"
+    target[wall_field(prefix, "Res_Wall")] = "—"
+    target[wall_field(prefix, "Res_Vol")] = "—"
+    target[wall_field(prefix, "Wall_Status")] = "—"
+    target[wall_field(prefix, "BTC_Now")] = "—"
+
+
+def build_orderbook_signal(data):
+    exchanges = [
+        ("Kraken", ""),
+        ("OKX", "OKX"),
+        ("Bybit", "BYBIT"),
+        ("Coinbase", "COINBASE"),
+    ]
+    snapshots = []
+    for name, prefix in exchanges:
+        snapshots.append(
+            {
+                "name": name,
+                "status": data.get(wall_field(prefix, "Wall_Status"), "—"),
+                "support": data.get(wall_field(prefix, "Sup_Wall"), "—"),
+                "resistance": data.get(wall_field(prefix, "Res_Wall"), "—"),
+            }
+        )
+
+    support_names = [item["name"] for item in snapshots if "Dest" in item["status"]]
+    resistance_names = [item["name"] for item in snapshots if "Diren" in item["status"]]
+
+    if len(support_names) >= 2 and len(support_names) > len(resistance_names):
+        detail = " · ".join(
+            f"{item['name']} {item['support']}"
+            for item in snapshots
+            if item["name"] in support_names and item["support"] != "—"
+        )
+        return {
+            "title": "Ortak destek guclu",
+            "detail": detail or "Coklu borsa destegi goruluyor.",
+            "badge": "SUPPORT",
+            "class": "signal-long",
+        }
+
+    if len(resistance_names) >= 2 and len(resistance_names) > len(support_names):
+        detail = " · ".join(
+            f"{item['name']} {item['resistance']}"
+            for item in snapshots
+            if item["name"] in resistance_names and item["resistance"] != "—"
+        )
+        return {
+            "title": "Ortak direnc guclu",
+            "detail": detail or "Coklu borsa direnci goruluyor.",
+            "badge": "RESISTANCE",
+            "class": "signal-short",
+        }
+
+    detail = " · ".join(
+        f"{item['name']} {item['support']} / {item['resistance']}"
+        for item in snapshots
+        if item["support"] != "—" or item["resistance"] != "—"
+    )
+    return {
+        "title": "Seviyeler karisik",
+        "detail": detail or "Coklu borsa teyidi henuz yok.",
+        "badge": "MIXED",
+        "class": "signal-neutral",
     }
 
 
@@ -737,8 +833,8 @@ def build_market_brief(data):
     etf_flow_num = parse_number(etf_flow_total)
     etf_flow_date = data.get("ETF_FLOW_DATE", "—")
     ls_signal = data.get("LS_Signal", "—")
-    wall_status = data.get("Wall_Status", "—")
-    binance_wall_status = data.get("BN_Wall_Status", "—")
+    orderbook_signal = data.get("ORDERBOOK_SIGNAL", "—")
+    orderbook_detail = data.get("ORDERBOOK_SIGNAL_DETAIL", "—")
 
     if btc_change is not None and btc_change >= 2:
         regime = {
@@ -815,34 +911,34 @@ def build_market_brief(data):
             "class": "signal-neutral",
         }
 
-    if "Dirence" in wall_status and "Dirence" in binance_wall_status:
+    if "destek" in orderbook_signal.lower():
         focus = {
             "label": "Odak Seviye",
-            "title": "Çift Borsa Direnç",
-            "detail": f"Kraken {data.get('Res_Wall', '—')} · Binance {data.get('BN_Res_Wall', '—')}",
-            "badge": "RESISTANCE",
-            "class": "signal-short",
-        }
-    elif "Desteğe" in wall_status and "Desteğe" in binance_wall_status:
-        focus = {
-            "label": "Odak Seviye",
-            "title": "Çift Borsa Destek",
-            "detail": f"Kraken {data.get('Sup_Wall', '—')} · Binance {data.get('BN_Sup_Wall', '—')}",
+            "title": "Ortak Destek",
+            "detail": orderbook_detail,
             "badge": "SUPPORT",
             "class": "signal-long",
         }
-    elif "Dirence" in wall_status:
+    elif "direnc" in orderbook_signal.lower():
         focus = {
             "label": "Odak Seviye",
-            "title": "Direnç Testi",
+            "title": "Ortak Direnc",
+            "detail": orderbook_detail,
+            "badge": "RESISTANCE",
+            "class": "signal-short",
+        }
+    elif "Diren" in data.get("Wall_Status", "—"):
+        focus = {
+            "label": "Odak Seviye",
+            "title": "Kraken Direnci",
             "detail": f"Şimdi {data.get('BTC_Now', '—')} · Duvar {data.get('Res_Wall', '—')} ({data.get('Res_Vol', '—')})",
             "badge": "RESISTANCE",
             "class": "signal-short",
         }
-    elif "Desteğe" in wall_status:
+    elif "Dest" in data.get("Wall_Status", "—"):
         focus = {
             "label": "Odak Seviye",
-            "title": "Destek Takibi",
+            "title": "Kraken Destegi",
             "detail": f"Şimdi {data.get('BTC_Now', '—')} · Duvar {data.get('Sup_Wall', '—')} ({data.get('Sup_Vol', '—')})",
             "badge": "SUPPORT",
             "class": "signal-long",
@@ -850,10 +946,10 @@ def build_market_brief(data):
     else:
         focus = {
             "label": "Odak Seviye",
-            "title": "Kanal İçi Fiyatlama",
-            "detail": f"Destek {data.get('Sup_Wall', '—')} · Direnç {data.get('Res_Wall', '—')}",
-            "badge": "RANGE",
-            "class": "signal-neutral",
+            "title": "Seviye Dengesi",
+            "detail": orderbook_detail,
+            "badge": data.get("ORDERBOOK_SIGNAL_BADGE", "RANGE"),
+            "class": data.get("ORDERBOOK_SIGNAL_CLASS", "signal-neutral"),
         }
 
     if vix is not None and vix >= 25:
@@ -1030,37 +1126,52 @@ def veri_motoru():
     except:
         v["Corr_SP500"]="—"; v["Corr_Gold"]="—"
 
-    # 9. Balina duvarları (Kraken + Binance)
+    # 9. Balina duvarları (Kraken + OKX + Bybit + Coinbase)
     try:
-        ob  = requests.get("https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=500", timeout=8).json()
+        ob = fetch_json_without_env_proxy("https://api.kraken.com/0/public/Depth?pair=XBTUSD&count=500", timeout=8)
         pk  = list(ob["result"].keys())[0]
         bids= [(float(p),float(q)) for p,q,_ in ob["result"][pk]["bids"]]
         asks= [(float(p),float(q)) for p,q,_ in ob["result"][pk]["asks"]]
         kraken_levels = extract_wall_levels(bids, asks)
-        v["Sup_Wall"]    = f"${kraken_levels['support_price']:,}"
-        v["Sup_Vol"]     = f"{int(kraken_levels['support_volume']):,} BTC"
-        v["Res_Wall"]    = f"${kraken_levels['resistance_price']:,}"
-        v["Res_Vol"]     = f"{int(kraken_levels['resistance_volume']):,} BTC"
-        v["Wall_Status"] = kraken_levels["status"]
-        v["BTC_Now"]     = f"${kraken_levels['current_price']:,.0f}"
+        save_wall_levels(v, "", kraken_levels)
     except:
-        v["Sup_Wall"]="—"; v["Sup_Vol"]="—"; v["Res_Wall"]="—"; v["Res_Vol"]="—"
-        v["Wall_Status"]="—"; v["BTC_Now"]="—"
+        clear_wall_levels(v, "")
 
     try:
-        bn = fetch_json_without_env_proxy("https://api.binance.com/api/v3/depth?symbol=BTCUSDT&limit=5000", timeout=8)
-        bids = [(float(p), float(q)) for p, q in bn["bids"]]
-        asks = [(float(p), float(q)) for p, q in bn["asks"]]
-        binance_levels = extract_wall_levels(bids, asks)
-        v["BN_Sup_Wall"] = f"${binance_levels['support_price']:,}"
-        v["BN_Sup_Vol"] = f"{int(binance_levels['support_volume']):,} BTC"
-        v["BN_Res_Wall"] = f"${binance_levels['resistance_price']:,}"
-        v["BN_Res_Vol"] = f"{int(binance_levels['resistance_volume']):,} BTC"
-        v["BN_Wall_Status"] = binance_levels["status"]
-        v["BN_BTC_Now"] = f"${binance_levels['current_price']:,.0f}"
+        okx = fetch_json_without_env_proxy("https://www.okx.com/api/v5/market/books?instId=BTC-USDT&sz=400", timeout=8)
+        okx_book = okx["data"][0]
+        bids = [(float(p), float(q)) for p, q, *_ in okx_book["bids"]]
+        asks = [(float(p), float(q)) for p, q, *_ in okx_book["asks"]]
+        okx_levels = extract_wall_levels(bids, asks)
+        save_wall_levels(v, "OKX", okx_levels)
     except:
-        v["BN_Sup_Wall"] = "—"; v["BN_Sup_Vol"] = "—"; v["BN_Res_Wall"] = "—"; v["BN_Res_Vol"] = "—"
-        v["BN_Wall_Status"] = "—"; v["BN_BTC_Now"] = "—"
+        clear_wall_levels(v, "OKX")
+
+    try:
+        bybit = fetch_json_without_env_proxy("https://api.bybit.com/v5/market/orderbook?category=spot&symbol=BTCUSDT&limit=200", timeout=8)
+        bybit_book = bybit["result"]
+        bids = [(float(p), float(q)) for p, q, *_ in bybit_book["b"]]
+        asks = [(float(p), float(q)) for p, q, *_ in bybit_book["a"]]
+        bybit_levels = extract_wall_levels(bids, asks)
+        save_wall_levels(v, "BYBIT", bybit_levels)
+    except:
+        clear_wall_levels(v, "BYBIT")
+
+    try:
+        coinbase = fetch_json_without_env_proxy("https://api.exchange.coinbase.com/products/BTC-USD/book?level=2", timeout=8)
+        bids = [(float(p), float(q)) for p, q, *_ in coinbase["bids"]]
+        asks = [(float(p), float(q)) for p, q, *_ in coinbase["asks"]]
+        coinbase_levels = extract_wall_levels(bids, asks)
+        save_wall_levels(v, "COINBASE", coinbase_levels)
+    except:
+        clear_wall_levels(v, "COINBASE")
+
+    orderbook_signal = build_orderbook_signal(v)
+    v["ORDERBOOK_SIGNAL"] = orderbook_signal["title"]
+    v["ORDERBOOK_SIGNAL_DETAIL"] = orderbook_signal["detail"]
+    v["ORDERBOOK_SIGNAL_BADGE"] = orderbook_signal["badge"]
+    v["ORDERBOOK_SIGNAL_CLASS"] = orderbook_signal["class"]
+    v["ORDERBOOK_SOURCES"] = "Kraken · OKX · Bybit · Coinbase"
 
     # 10. Stablecoin (DeFiLlama)
     try:
@@ -1332,22 +1443,22 @@ with st.sidebar:
         "Watchlist",
         "İzlenecek Seviyeler",
         [
-            ("Ana destek", f"{data.get('Sup_Wall', '—')} · {data.get('Sup_Vol', '—')}"),
-            ("Ana direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
+            ("Order book sinyali", data.get("ORDERBOOK_SIGNAL", "—")),
+            ("Kraken ana seviye", f"{data.get('Sup_Wall', '—')} / {data.get('Res_Wall', '—')}"),
             ("Günlük ETF Netflow", f"{data.get('ETF_FLOW_TOTAL', '—')} · {data.get('ETF_FLOW_DATE', '—')}"),
             ("USD/TRY", data.get("USDTRY", "—")),
         ],
         badge_text=brief["focus"]["badge"],
         badge_kind=brief["focus"]["class"],
-        copy="Kısa vadeli kararları en çok etkileyen seviyeler burada özetleniyor.",
+        copy="Coklu borsa order book ozeti ile kurumsal akis ayni izleme panelinde toplandi.",
     )
 
     st.divider()
     st.markdown("""
 **Veri Kaynakları:**  
-`Coinpaprika` · `Kraken` · `Binance`  
+`Coinpaprika` · `Kraken` · `OKX` · `Bybit` · `Coinbase`  
 `DeFiLlama` · `yFinance` · `TradingView`  
-`OKX` · `FRED` · `CoinDesk`
+`FRED` · `CoinDesk`
 
 **Model:** `Gemini 2.5 Flash`  
 **Cache:** 3 dk | Türev: Canlı
@@ -1383,9 +1494,6 @@ with tab1:
     else:
         fr_label = "Funding dengeli, tek taraflı kalabalık yok."
         fr_badge = "signal-neutral"
-
-    wall_status = data.get("Wall_Status", "—")
-    ws_cls = badge_class(wall_status)
 
     hero_col, context_col = st.columns([1.75, 1.05])
     with hero_col:
@@ -1455,19 +1563,22 @@ with tab1:
         )
     with col_orderbook:
         render_info_panel(
-            "Kraken + Binance",
+            data.get("ORDERBOOK_SOURCES", "Kraken · OKX · Bybit · Coinbase"),
             "Order Book Seviyeleri",
             [
-                ("Kraken durum", wall_status),
+                ("Birlesik sinyal", data.get("ORDERBOOK_SIGNAL", "—")),
                 ("Kraken destek", f"{data.get('Sup_Wall', '—')} · {data.get('Sup_Vol', '—')}"),
                 ("Kraken direnç", f"{data.get('Res_Wall', '—')} · {data.get('Res_Vol', '—')}"),
-                ("Binance durum", data.get("BN_Wall_Status", "—")),
-                ("Binance destek", f"{data.get('BN_Sup_Wall', '—')} · {data.get('BN_Sup_Vol', '—')}"),
-                ("Binance direnç", f"{data.get('BN_Res_Wall', '—')} · {data.get('BN_Res_Vol', '—')}"),
+                ("OKX destek", f"{data.get('OKX_Sup_Wall', '—')} · {data.get('OKX_Sup_Vol', '—')}"),
+                ("OKX direnç", f"{data.get('OKX_Res_Wall', '—')} · {data.get('OKX_Res_Vol', '—')}"),
+                ("Bybit destek", f"{data.get('BYBIT_Sup_Wall', '—')} · {data.get('BYBIT_Sup_Vol', '—')}"),
+                ("Bybit direnç", f"{data.get('BYBIT_Res_Wall', '—')} · {data.get('BYBIT_Res_Vol', '—')}"),
+                ("Coinbase destek", f"{data.get('COINBASE_Sup_Wall', '—')} · {data.get('COINBASE_Sup_Vol', '—')}"),
+                ("Coinbase direnç", f"{data.get('COINBASE_Res_Wall', '—')} · {data.get('COINBASE_Res_Vol', '—')}"),
             ],
-            badge_text=brief["focus"]["title"],
-            badge_kind=brief["focus"]["class"],
-            copy="Kraken ve Binance derinliği aynı panelde toplandı; iki borsada benzer duvar oluşuyorsa destek/direnç daha güçlü okunur.",
+            badge_text=data.get("ORDERBOOK_SIGNAL", "—"),
+            badge_kind=data.get("ORDERBOOK_SIGNAL_CLASS", "signal-neutral"),
+            copy="Tek tek borsa durumlari yerine coklu borsa teyidi tek satirlik sinyalde toplanir; detay seviyeler asagida okunur.",
         )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -1679,9 +1790,12 @@ Taker Buy/Sell: {data.get('Taker','—')}
 Long/Short Oranı: {data.get('LS_Ratio','—')} → {data.get('LS_Signal','—')}
 Long %: {data.get('Long_Pct','—')} | Short %: {data.get('Short_Pct','—')}
 
-📌 BALİNA DUVARLARI (Kraken + Binance Order Book):
+📌 BALİNA DUVARLARI (Kraken + OKX + Bybit + Coinbase):
+Birleşik sinyal: {data.get('ORDERBOOK_SIGNAL','—')} | Detay: {data.get('ORDERBOOK_SIGNAL_DETAIL','—')}
 Kraken → 🟢 Destek: {data.get('Sup_Wall','—')} — {data.get('Sup_Vol','—')} | 🔴 Direnç: {data.get('Res_Wall','—')} — {data.get('Res_Vol','—')} | Durum: {data.get('Wall_Status','—')}
-Binance → 🟢 Destek: {data.get('BN_Sup_Wall','—')} — {data.get('BN_Sup_Vol','—')} | 🔴 Direnç: {data.get('BN_Res_Wall','—')} — {data.get('BN_Res_Vol','—')} | Durum: {data.get('BN_Wall_Status','—')}
+OKX → 🟢 Destek: {data.get('OKX_Sup_Wall','—')} — {data.get('OKX_Sup_Vol','—')} | 🔴 Direnç: {data.get('OKX_Res_Wall','—')} — {data.get('OKX_Res_Vol','—')} | Durum: {data.get('OKX_Wall_Status','—')}
+Bybit → 🟢 Destek: {data.get('BYBIT_Sup_Wall','—')} — {data.get('BYBIT_Sup_Vol','—')} | 🔴 Direnç: {data.get('BYBIT_Res_Wall','—')} — {data.get('BYBIT_Res_Vol','—')} | Durum: {data.get('BYBIT_Wall_Status','—')}
+Coinbase → 🟢 Destek: {data.get('COINBASE_Sup_Wall','—')} — {data.get('COINBASE_Sup_Vol','—')} | 🔴 Direnç: {data.get('COINBASE_Res_Wall','—')} — {data.get('COINBASE_Res_Vol','—')} | Durum: {data.get('COINBASE_Wall_Status','—')}
 
 📌 KORKU & DUYGU:
 Fear & Greed Index: {data.get('FNG','—')} (dün: {data.get('FNG_PREV','—')})
@@ -1756,8 +1870,9 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 - Funding Rate {data.get('FR','—')}: short squeeze mu long liquidation mu daha olası?
 - L/S {data.get('LS_Ratio','—')} ({data.get('LS_Signal','—')}): kalabalık taraf nerede, squeeze ihtimali?
 - Taker B/S {data.get('Taker','—')}: piyasaya agresif alıcı mı satıcı mı hakim?
-- Kraken destek duvarı {data.get('Sup_Wall','—')} ({data.get('Sup_Vol','—')}) ve Binance destek duvarı {data.get('BN_Sup_Wall','—')} ({data.get('BN_Sup_Vol','—')}): ortak destek gerçekten güçlü mü?
-- Kraken direnç duvarı {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}) ve Binance direnç duvarı {data.get('BN_Res_Wall','—')} ({data.get('BN_Res_Vol','—')}): kırılabilir mi?
+- Birleşik sinyal {data.get('ORDERBOOK_SIGNAL','—')}: Kraken, OKX, Bybit ve Coinbase seviyeleri aynı yöne bakıyor mu?
+- Kraken destek {data.get('Sup_Wall','—')} ({data.get('Sup_Vol','—')}), OKX destek {data.get('OKX_Sup_Wall','—')} ({data.get('OKX_Sup_Vol','—')}), Bybit destek {data.get('BYBIT_Sup_Wall','—')} ({data.get('BYBIT_Sup_Vol','—')}) ve Coinbase destek {data.get('COINBASE_Sup_Wall','—')} ({data.get('COINBASE_Sup_Vol','—')}): ortak destek gerçekten güçlü mü?
+- Kraken direnç {data.get('Res_Wall','—')} ({data.get('Res_Vol','—')}), OKX direnç {data.get('OKX_Res_Wall','—')} ({data.get('OKX_Res_Vol','—')}), Bybit direnç {data.get('BYBIT_Res_Wall','—')} ({data.get('BYBIT_Res_Vol','—')}) ve Coinbase direnç {data.get('COINBASE_Res_Wall','—')} ({data.get('COINBASE_Res_Vol','—')}): kırılabilir mi?
 
 **🏦 3. KURUMSAL AKIŞ & LİKİDİTE ANALİZİ**
 - Günlük ETF netflow {data.get('ETF_FLOW_TOTAL','—')} ({data.get('ETF_FLOW_DATE','—')}): kurumsal para girişi/çıkışı trendi ne?
@@ -1854,9 +1969,16 @@ with tab5:
         "🐋 Order Book & ETF": [
             ("Destek Duvarı","Sup_Wall"),("Destek Hacim","Sup_Vol"),
             ("Direnç Duvarı","Res_Wall"),("Direnç Hacim","Res_Vol"),
-            ("Tahta Durumu","Wall_Status"),("Binance Destek","BN_Sup_Wall"),
-            ("Binance Destek Hacim","BN_Sup_Vol"),("Binance Direnç","BN_Res_Wall"),
-            ("Binance Direnç Hacim","BN_Res_Vol"),("Binance Durum","BN_Wall_Status"),
+            ("Tahta Durumu","Wall_Status"),("Birleşik Sinyal","ORDERBOOK_SIGNAL"),
+            ("Birleşik Detay","ORDERBOOK_SIGNAL_DETAIL"),("Kaynaklar","ORDERBOOK_SOURCES"),
+            ("OKX Destek","OKX_Sup_Wall"),("OKX Destek Hacim","OKX_Sup_Vol"),
+            ("OKX Direnç","OKX_Res_Wall"),("OKX Direnç Hacim","OKX_Res_Vol"),
+            ("OKX Durum","OKX_Wall_Status"),("Bybit Destek","BYBIT_Sup_Wall"),
+            ("Bybit Destek Hacim","BYBIT_Sup_Vol"),("Bybit Direnç","BYBIT_Res_Wall"),
+            ("Bybit Direnç Hacim","BYBIT_Res_Vol"),("Bybit Durum","BYBIT_Wall_Status"),
+            ("Coinbase Destek","COINBASE_Sup_Wall"),("Coinbase Destek Hacim","COINBASE_Sup_Vol"),
+            ("Coinbase Direnç","COINBASE_Res_Wall"),("Coinbase Direnç Hacim","COINBASE_Res_Vol"),
+            ("Coinbase Durum","COINBASE_Wall_Status"),
             ("ETF Tarih","ETF_FLOW_DATE"),("ETF Netflow Toplam","ETF_FLOW_TOTAL"),
             ("IBIT Netflow","ETF_FLOW_IBIT"),("FBTC Netflow","ETF_FLOW_FBTC"),
             ("BITB Netflow","ETF_FLOW_BITB"),("ARKB Netflow","ETF_FLOW_ARKB"),
