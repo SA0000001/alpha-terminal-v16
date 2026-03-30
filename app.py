@@ -785,22 +785,34 @@ def build_orderbook_signal(data):
     }
 
 
-def fetch_tradingview_usdt_d():
-    for url in [
-        "https://r.jina.ai/http://www.tradingview.com/symbols/USDT.D/?exchange=CRYPTOCAP",
-        "https://r.jina.ai/http://www.tradingview.com/symbols/USDT.D/",
-    ]:
+@st.cache_data(ttl=30)
+def fetch_live_usdt_d():
+    try:
+        cg_g = fetch_json_without_env_proxy(
+            "https://api.coingecko.com/api/v3/global",
+            timeout=6,
+        )["data"]
+        return {
+            "USDT_D": f"%{cg_g['market_cap_percentage']['usdt']:.2f}",
+            "USDT_D_SOURCE": "CoinGecko",
+        }
+    except:
         try:
-            tv_text = fetch_text_without_env_proxy(url, timeout=20)
-            match = re.search(r"Market open\s+([0-9]+(?:\.[0-9]+)?)%R", tv_text)
-            if not match:
-                match = re.search(r"USDT\.D Market open\s+([0-9]+(?:\.[0-9]+)?)\sR%", tv_text)
-            if match:
-                return f"%{float(match.group(1)):.2f}", "TradingView"
+            cg2 = fetch_json_without_env_proxy(
+                "https://api.coinpaprika.com/v1/global",
+                timeout=6,
+            )
+            total_mc = cg2["market_cap_usd"]
+            ur = fetch_json_without_env_proxy(
+                "https://api.coinpaprika.com/v1/tickers/usdt-tether",
+                timeout=6,
+            )
+            return {
+                "USDT_D": f"%{ur['quotes']['USD']['market_cap']/total_mc*100:.2f}",
+                "USDT_D_SOURCE": "Coinpaprika",
+            }
         except:
-            pass
-
-    return None, None
+            return {"USDT_D": "—", "USDT_D_SOURCE": "—"}
 
 
 def render_info_panel(kicker: str, title: str, rows, badge_text: str = "", badge_kind: str = "signal-neutral", copy: str = ""):
@@ -1201,32 +1213,8 @@ def veri_motoru():
         v["Total_Stable"]="—"; v["USDT_MCap"]="—"; v["USDC_MCap"]="—"
         v["DAI_MCap"]="—"; v["USDT_Dom_Stable"]="—"
 
-    # USDT.D — TradingView uyumlu kaynak, fallback CoinGecko / Coinpaprika
-    try:
-        usdt_d_value, usdt_d_source = fetch_tradingview_usdt_d()
-        if usdt_d_value:
-            v["USDT_D"] = usdt_d_value
-            v["USDT_D_SOURCE"] = usdt_d_source
-        else:
-            raise ValueError
-    except:
-        try:
-            cg_g = requests.get("https://api.coingecko.com/api/v3/global",
-                                headers=HEADERS, timeout=6).json()["data"]
-            v["USDT_D"] = f"%{cg_g['market_cap_percentage']['usdt']:.2f}"
-            v["USDT_D_SOURCE"] = "CoinGecko"
-        except:
-            try:
-                cg2 = requests.get("https://api.coinpaprika.com/v1/global",
-                                   headers=HEADERS, timeout=6).json()
-                total_mc = cg2["market_cap_usd"]
-                ur = requests.get("https://api.coinpaprika.com/v1/tickers/usdt-tether",
-                                  headers=HEADERS, timeout=6).json()
-                v["USDT_D"] = f"%{ur['quotes']['USD']['market_cap']/total_mc*100:.2f}"
-                v["USDT_D_SOURCE"] = "Coinpaprika"
-            except:
-                v["USDT_D"] = "—"
-                v["USDT_D_SOURCE"] = "—"
+    # USDT.D — canli market cap yuzdesi, ana cache'ten ayri hizda yenilenir
+    v.update(fetch_live_usdt_d())
 
     # OI + FR + L/S (placeholder — turev_cek() ile doldurulacak)
     v["OI"]="—"; v["FR"]="—"; v["Taker"]="—"
@@ -1381,6 +1369,7 @@ son_guncelleme = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%d.%m.%Y %H:%M
 with st.spinner("Piyasa verileri ve türev akışı yükleniyor..."):
     data = veri_motoru()
     data.update(turev_cek())
+    data.update(fetch_live_usdt_d())
 
 brief = build_market_brief(data)
 
