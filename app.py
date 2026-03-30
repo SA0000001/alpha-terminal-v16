@@ -1377,9 +1377,19 @@ with tab1:
     cat("KURUMSAL AKIŞ & LİKİDİTE", "🏦")
     col_etf, col_liquidity = st.columns([1.25, 1])
     with col_etf:
-        st.markdown("#### Günlük ETF Netflow")
-        st.caption(f"Kaynak: Farside · {data.get('ETF_FLOW_DATE', '—')}")
-        st.dataframe(build_etf_flow_df(data), use_container_width=True, hide_index=True)
+        render_info_panel(
+            "ETF Flow",
+            "Günlük ETF Netflow Özeti",
+            [
+                ("Son dolu gün", data.get("ETF_FLOW_DATE", "—")),
+                ("Toplam netflow", data.get("ETF_FLOW_TOTAL", "—")),
+                ("Kaynak", data.get("ETF_FLOW_SOURCE", "Farside")),
+                ("Detay görünümü", "Tüm Metrikler sekmesinde"),
+            ],
+            badge_text=brief["liquidity"]["title"],
+            badge_kind=brief["liquidity"]["class"],
+            copy="İlk sayfada yalnızca toplam kurumsal akış özeti tutuldu. ETF bazlı dağılım detayları Tüm Metrikler sekmesinde yer alıyor.",
+        )
     with col_liquidity:
         render_info_panel(
             "Dry Powder",
