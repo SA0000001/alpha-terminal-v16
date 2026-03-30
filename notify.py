@@ -270,10 +270,10 @@ STABLECOINS: Toplam {v.get('Total_Stable','—')} | Stable.C.D {v.get('STABLE_C_
 STABLE TANIMLARI: Stable.C.D = toplam stablecoin market cap / toplam kripto market cap. USDT.D = USDT market cap / toplam kripto market cap. USDT stable dominance = USDT market cap / toplam stablecoin market cap.
 ORDER BOOK: {v.get('ORDERBOOK_SIGNAL','—')} | Kraken {v.get('Sup_Wall','—')} / {v.get('Res_Wall','—')} | OKX {v.get('OKX_Sup_Wall','—')} / {v.get('OKX_Res_Wall','—')} | KuCoin {v.get('KUCOIN_Sup_Wall','—')} / {v.get('KUCOIN_Res_Wall','—')} | Gate.io {v.get('GATE_Sup_Wall','—')} / {v.get('GATE_Res_Wall','—')} | Coinbase {v.get('COINBASE_Sup_Wall','—')} / {v.get('COINBASE_Res_Wall','—')}
 TUREV: OI {v.get('OI','—')} | Funding {v.get('FR','—')} | Taker {v.get('Taker','—')} | L/S {v.get('LS_Ratio','—')} ({v.get('LS_Signal','—')})
-MAKRO: FED {v.get('FED','—')} | M2 {v.get('M2','—')} | US10Y {v.get('US10Y','—')} | DXY {v.get('DXY','—')} | VIX {v.get('VIX','—')}
+MAKRO: FED {v.get('FED','—')} | M2 {v.get('M2','—')} | US10Y {v.get('US10Y','—')} ({v.get('US10Y_C','—')}) | DXY {v.get('DXY','—')} ({v.get('DXY_C','—')}) | VIX {v.get('VIX','—')} ({v.get('VIX_C','—')})
 ENDEKSLER: SP500 {v.get('SP500','—')} ({v.get('SP500_C','—')}) | NASDAQ {v.get('NASDAQ','—')} ({v.get('NASDAQ_C','—')}) | DAX {v.get('DAX','—')} ({v.get('DAX_C','—')}) | NIKKEI {v.get('NIKKEI','—')} ({v.get('NIKKEI_C','—')})
-FOREX: EURUSD {v.get('EURUSD','—')} | USDJPY {v.get('USDJPY','—')} | USDTRY {v.get('USDTRY','—')}
-EMTIALAR: GOLD {v.get('GOLD','—')} | SILVER {v.get('SILVER','—')} | OIL {v.get('OIL','—')} | NATGAS {v.get('NATGAS','—')}
+FOREX: EURUSD {v.get('EURUSD','—')} ({v.get('EURUSD_C','—')}) | USDJPY {v.get('USDJPY','—')} ({v.get('USDJPY_C','—')}) | USDTRY {v.get('USDTRY','—')} ({v.get('USDTRY_C','—')})
+EMTIALAR: GOLD {v.get('GOLD','—')} ({v.get('GOLD_C','—')}) | SILVER {v.get('SILVER','—')} ({v.get('SILVER_C','—')}) | OIL {v.get('OIL','—')} ({v.get('OIL_C','—')}) | NATGAS {v.get('NATGAS','—')} ({v.get('NATGAS_C','—')})
 ONCHAIN: Hash {v.get('Hash','—')} | Active {v.get('BTC_Active','—')} | Corr SP500 {v.get('Corr_SP500','—')} | Corr Gold {v.get('Corr_Gold','—')}
 ALTCOIN_7G: ETH {v.get('ETH_7D','—')} | SOL {v.get('SOL_7D','—')} | BNB {v.get('BNB_7D','—')} | XRP {v.get('XRP_7D','—')} | ADA {v.get('ADA_7D','—')} | AVAX {v.get('AVAX_7D','—')} | LINK {v.get('LINK_7D','—')} | DOT {v.get('DOT_7D','—')}
 ALTCOIN_24S: ETH {v.get('ETH_C','—')} | SOL {v.get('SOL_C','—')} | BNB {v.get('BNB_C','—')} | XRP {v.get('XRP_C','—')} | ADA {v.get('ADA_C','—')} | AVAX {v.get('AVAX_C','—')} | LINK {v.get('LINK_C','—')} | DOT {v.get('DOT_C','—')}
@@ -295,10 +295,15 @@ ZORUNLU KURALLAR:
 - Haftalik altcoin yorumu yazarken yalnizca ALTCOIN_7G satirini kullan. ALTCOIN_24S satiri haftalik sonuc cikarmak icin kullanilamaz.
 - 7 gunluk relatif guc cumlesinde ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin yazilan her yuzde mutlaka ilgili 7g veri satirindaki sayiyla ayni olmali.
 - VIX ve M2 icin haftalik, onceki hafta, degisim hizi veya yuzdesel periyot farki uydurma. Elinde sadece mevcut seviye varsa yalnizca mevcut seviyeyi yorumla.
-- VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen M2 degeri ve varsa gunluk degisim kullanilabilir. Gecen hafta, onceki ay veya trend hizi uydurulamaz.
+- VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen M2 degeri kullanilabilir. Gecen hafta, onceki ay, gunluk degisim veya trend hizi uydurulamaz.
 - TOTAL, TOTAL2, TOTAL3 ve OTHERS tanimlarini yukaridaki gibi kullan; TOTAL3'u asla ilk 10 disi olarak anlatma. OTHERS'i asla BTC ve ETH harici toplam piyasa degeri olarak anlatma.
 - Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
 - Tüm veri kategorilerini mutlaka kullan.
+
+- Makro bolumde yalnizca terminalde gunluk degisimi olan metriklerde gunluk yuzde degisimi kullan: US10Y_C, DXY_C, VIX_C, SP500_C, NASDAQ_C, DAX_C, NIKKEI_C, EURUSD_C, USDJPY_C, USDTRY_C, GOLD_C, SILVER_C, OIL_C, NATGAS_C.
+- FED ve M2 icin gunluk degisim verme; bu iki metrikte sadece mevcut seviye yorumlanabilir.
+- Makro Ortam ve Risk Istahi bolumunde GOLD ve OIL icin en az birer ayri cumle yorum zorunlu.
+- Emtia yorumunda altini guvenli liman ve enflasyon, petrolu buyume, enflasyon ve jeopolitik risk cercevesinde degerlendir.
 
 KULLANILACAK BASLIKLAR:
 1. SA Finance Alpha Terminal Sabah Bulteni
