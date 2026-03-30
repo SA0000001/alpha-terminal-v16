@@ -322,60 +322,76 @@ def ai_raporu(v, takvim, haberler):
     bugun = pd.Timestamp.now(tz="Europe/Istanbul").strftime("%d %B %Y, %A")
 
     prompt = f"""
-Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisisin.
-Aşağıdaki TÜM gerçek verileri kullanarak Serhat için derinlikli, rakamsal ve eyleme dönüşebilir 
-bir sabah bülteni yaz. Türkçe yaz. Telegram Markdown formatı (**kalın**, _italik_).
+Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisi ve quant analistsin.
+Aşağıdaki TÜM gerçek piyasa verilerini kullanarak Serhat için derinlikli, rakamsal ve eyleme dönüşebilir bir bülten yaz.
+Türkçe yaz. Telegram Markdown formatı kullan (**kalın**, _italik_).
 
-TEMEL KURALLAR:
-- Her iddiayı rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')})" yaz.
-- Seviyeleri kesin yaz: "$70,200 kırılırsa" gibi.
-- Her bölüm derinlikli olsun, yüzeysel geçme.
-- Tüm veri kategorilerini mutlaka kullan.
+YAZIM KURALLARI:
+- Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
+- Fiyatları her zaman düz yaz: 65000 dolar veya $65,000 formatında. Asla LaTeX veya matematiksel formül kullanma.
+- Seviyeleri kesin belirt: "$84,200 kırılırsa..." gibi somut eşikler ver.
+- Asla "dikkatli ol", "bu tavsiye değildir", "kendi araştırmanı yap" gibi yasal uyarı yazma.
+- Bölüm sonlarına tekrar eden özet paragrafı ekleme.
+- Tüm veri kategorilerini (makro, türev, on-chain, ETF, stablecoin, forex, emtia, altcoin) mutlaka kullan.
 
-━━━━━━━━ DASHBOARD VERİLERİ ({bugun}) ━━━━━━━━
+━━━━━━━━ CANLI VERİLER ({bugun}) ━━━━━━━━
 
-🔶 KRİPTO FİYATLAR:
-BTC: {v['BTC_P']} | 24s: {v['BTC_C']} | 7g: {v.get('BTC_7D','—')} | Hacim: {v['Vol_24h']}
-ETH: {v['ETH_P']} (24s:{v['ETH_C']} 7g:{v.get('ETH_7D','—')})
-SOL: {v['SOL_P']} (24s:{v['SOL_C']} 7g:{v.get('SOL_7D','—')})
-BNB: {v['BNB_P']} (24s:{v['BNB_C']}) | XRP: {v['XRP_P']} (24s:{v['XRP_C']})
-ADA: {v['ADA_P']} | AVAX: {v['AVAX_P']} | LINK: {v['LINK_P']} | DOT: {v['DOT_P']}
+📌 BİTCOİN:
+Fiyat: {v['BTC_P']} | 24s: {v['BTC_C']} | 7g: {v.get('BTC_7D','—')} | Hacim: {v['Vol_24h']} | MCap: {v.get('MCap_BTC','—')}
+BTC Dominance: {v['Dom']} | Total MCap: {v['Total_MCap']} | Total Hacim: {v['Total_Vol']}
 Korku/Açgözlülük: {v['FNG']} (dün: {v.get('FNG_PREV','—')})
-BTC Dominance: {v['Dom']} | Total MCap: {v['Total_MCap']} | 24s Hacim: {v['Total_Vol']}
 
-🔶 BITCOIN ETF:
-IBIT: {v['IBIT_P']} ({v['IBIT_C']}) | Hacim: {v.get('IBIT_Vol','—')} | Akış: {v['IBIT_Flow']}
-FBTC: {v['FBTC_P']} ({v['FBTC_C']}) | BITB: {v['BITB_P']} ({v['BITB_C']}) | ARKB: {v['ARKB_P']} ({v['ARKB_C']})
+📌 TÜREV PİYASALAR (OKX):
+Open Interest: {v['OI']}
+Funding Rate: {v['FR']}
+Taker Buy/Sell: {v.get('Taker','—')}
+Long/Short Oranı: {v['LS_Ratio']} → {v['LS_Signal']}
+Long: {v['Long_Pct']} | Short: {v['Short_Pct']}
 
-🔶 STABLECOİN LİKİDİTESİ:
+📌 BALİNA DUVARLARI (Kraken Order Book):
+Mevcut Fiyat: {v.get('BTC_Now','—')}
+🟢 Destek: {v['Sup_Wall']} — {v['Sup_Vol']} BTC bekliyor
+🔴 Direnç: {v['Res_Wall']} — {v['Res_Vol']} BTC bekliyor
+
+📌 BİTCOİN ETF (Kurumsal Akış):
+IBIT (BlackRock): {v['IBIT_P']} | {v['IBIT_C']} | Akış: {v['IBIT_Flow']} | Hacim: {v.get('IBIT_Vol','—')}
+FBTC (Fidelity): {v['FBTC_P']} | {v['FBTC_C']}
+BITB (Bitwise): {v['BITB_P']} | {v['BITB_C']}
+ARKB (ARK): {v['ARKB_P']} | {v['ARKB_C']}
+
+📌 STABLECOİN LİKİDİTESİ (DeFiLlama):
 Toplam: {v['Total_Stable']} | USDT: {v['USDT_MCap']} | USDC: {v['USDC_MCap']}
 
-🔶 TÜREV PİYASALAR:
-Long/Short: {v['LS_Ratio']} → {v['LS_Signal']}
-Long: {v['Long_Pct']} | Short: {v['Short_Pct']}
-Open Interest: {v['OI']} | Funding Rate: {v['FR']} | Taker B/S: {v.get('Taker','—')}
+📌 ON-CHAIN:
+Hashrate: {v['Hash']} | Aktif Adres (est): {v.get('BTC_Active','—')}
+BTC ↔ SP500 Korelasyon (30g): {v['Corr_SP500']}
+BTC ↔ Altın Korelasyon (30g): {v['Corr_Gold']}
 
-🔶 BALİNA DUVARLARI (Kraken):
-🟢 Destek: {v['Sup_Wall']} ({v['Sup_Vol']} BTC bekliyor)
-🔴 Direnç: {v['Res_Wall']} ({v['Res_Vol']} BTC bekliyor)
+📌 MAKRO PARA POLİTİKASI:
+FED Faizi: {v['FED']} | M2 Büyümesi (YoY): {v['M2']}
+ABD 10Y Tahvil: {v['US10Y']} ({v['US10Y_C']})
+DXY: {v['DXY']} ({v['DXY_C']})
+VIX: {v['VIX']} ({v['VIX_C']})
 
-🔶 GLOBAL HİSSE ENDEKSLERİ:
+📌 GLOBAL HİSSE ENDEKSLERİ:
 SP500: {v['SP500']} ({v['SP500_C']}) | NASDAQ: {v['NASDAQ']} ({v['NASDAQ_C']})
 DAX: {v['DAX']} ({v['DAX_C']}) | NIKKEI: {v['NIKKEI']} ({v['NIKKEI_C']})
-BIST100: {v['BIST100']} ({v['BIST100_C']}) | VIX: {v['VIX']} ({v['VIX_C']})
+BIST100: {v['BIST100']} ({v['BIST100_C']})
 
-🔶 FOREX & TAHVİL:
-DXY: {v['DXY']} ({v['DXY_C']}) | EUR/USD: {v['EURUSD']} ({v['EURUSD_C']})
-USD/TRY: {v['USDTRY']} ({v['USDTRY_C']}) | USD/JPY: {v['USDJPY']} ({v['USDJPY_C']})
-ABD 10Y: {v['US10Y']} ({v['US10Y_C']})
+📌 FOREX:
+EUR/USD: {v['EURUSD']} ({v['EURUSD_C']}) | USD/JPY: {v['USDJPY']} ({v['USDJPY_C']})
+USD/TRY: {v['USDTRY']} ({v['USDTRY_C']})
 
-🔶 EMTİALAR:
+📌 EMTİALAR:
 Altın: {v['GOLD']} ({v['GOLD_C']}) | Gümüş: {v['SILVER']} ({v['SILVER_C']})
 Ham Petrol: {v['OIL']} ({v['OIL_C']}) | Doğalgaz: {v['NATGAS']} ({v['NATGAS_C']})
 
-🔶 MAKRO & ON-CHAIN:
-FED Faizi: {v['FED']} | M2 Büyümesi: {v['M2']}
-BTC Hashrate: {v['Hash']} | BTC Korelasyon SP500: {v['Corr_SP500']} | Altın: {v['Corr_Gold']}
+📌 ALTCOİNLER:
+ETH: {v['ETH_P']} | 24s: {v['ETH_C']} | 7g: {v.get('ETH_7D','—')}
+SOL: {v['SOL_P']} | 24s: {v['SOL_C']} | 7g: {v.get('SOL_7D','—')}
+BNB: {v['BNB_P']} | 24s: {v['BNB_C']}
+XRP: {v['XRP_P']} | 24s: {v['XRP_C']}
+ADA: {v['ADA_P']} | AVAX: {v['AVAX_P']} | LINK: {v['LINK_P']} | DOT: {v['DOT_P']}
 
 📅 EKONOMİK TAKVİM:
 {takvim_str}
@@ -383,55 +399,68 @@ BTC Hashrate: {v['Hash']} | BTC Korelasyon SP500: {v['Corr_SP500']} | Altın: {v
 📰 KRİPTO HABERLERİ:
 {haber_str}
 
-━━━━━━━━ RAPOR YAPISI ━━━━━━━━
+━━━━━━━━ RAPOR YAPISI (her bölümü eksiksiz yaz) ━━━━━━━━
 
-**🌅 Makro Bülten — {bugun}**
+**🌅 Sabah Bülteni — {bugun}**
 
-**1️⃣ Makro Ortam & Korelasyon**
-SP500, VIX, DXY, tahvil faizi rakamlarını ver.
-BTC'nin bu makro ortamla {v['Corr_SP500']} korelasyonunu yorumla.
-Altın {v['GOLD']} ve petrol {v['OIL']} ne söylüyor?
-USD/TRY {v['USDTRY']} TL bazlı yatırımcıyı nasıl etkiliyor?
-M2 {v['M2']} ve FED {v['FED']} likidite mesajı ne?
+**🌍 1. Makro Ortam & Korelasyon**
+SP500 {v['SP500_C']}, NASDAQ {v['NASDAQ_C']}, VIX {v['VIX']} — risk iştahı ne söylüyor?
+DXY {v['DXY']} ve tahvil faizi {v['US10Y']} BTC için ne anlam taşıyor?
+M2 {v['M2']} + FED {v['FED']}: likidite koşulları gevşiyor mu sıkışıyor mu?
+BTC-SP500 korelasyon {v['Corr_SP500']}, BTC-Altın {v['Corr_Gold']}: hangi yönde kullanılabilir?
+Altın {v['GOLD']} ({v['GOLD_C']}) ve petrol {v['OIL']} ({v['OIL_C']}) enflasyon/risk sinyali veriyor mu?
+USD/TRY {v['USDTRY']}: TL bazlı yatırımcı için BTC avantajlı mı?
 
-**2️⃣ BTC Teknik & Türev Analizi**
-Fiyat {v['BTC_P']}, 24s değişim, hacim {v['Vol_24h']}, 7 günlük trend.
-Balina duvarı analizi — {v['Sup_Wall']}'deki {v['Sup_Vol']} BTC ne anlama gelir?
-{v['Res_Wall']}'deki {v['Res_Vol']} BTC direnç ne kadar güçlü?
-Funding {v['FR']} pozitif mi negatif mi, short squeeze/long liquidation riski var mı?
-OI {v['OI']} — pozisyon birikimi tehlikeli mi?
-L/S {v['LS_Ratio']} ({v['LS_Signal']}) — kalabalık taraf neresi, squeeze ihtimali?
+**₿ 2. BTC Teknik & Türev Analizi**
+Fiyat {v['BTC_P']}, hacim {v['Vol_24h']}, 24s {v['BTC_C']}, 7g {v.get('BTC_7D','—')} trendini yorumla.
+OI {v['OI']}: pozisyon birikimi tehlikeli seviyede mi?
+Funding Rate {v['FR']}: short squeeze mu long liquidation mu daha olası?
+L/S {v['LS_Ratio']} ({v['LS_Signal']}): kalabalık taraf nerede, squeeze ihtimali var mı?
+Taker B/S {v.get('Taker','—')}: piyasaya agresif alıcı mı satıcı mı hakim?
+Destek duvarı {v['Sup_Wall']} ({v['Sup_Vol']} BTC): gerçekten güçlü mü?
+Direnç duvarı {v['Res_Wall']} ({v['Res_Vol']} BTC): kırılabilir mi?
+Hashrate {v['Hash']}: ağ sağlığı nasıl?
 
-**3️⃣ ETF & Likidite Akışları**
-IBIT akış {v['IBIT_Flow']} — kurumsal para giriyor mu çıkıyor mu?
-Stablecoin toplam {v['Total_Stable']} — piyasaya hazır para var mı?
-USDT {v['USDT_MCap']} + USDC {v['USDC_MCap']} — likidite trendini yorumla.
+**🏦 3. ETF & Likidite Akışları**
+IBIT akış {v['IBIT_Flow']}: kurumsal para girişi/çıkışı trendi ne?
+Tüm ETF fiyatları (FBTC {v['FBTC_C']}, BITB {v['BITB_C']}, ARKB {v['ARKB_C']}) ne söylüyor?
+Stablecoin toplam {v['Total_Stable']}: piyasaya hazır "barut" var mı?
+USDT {v['USDT_MCap']} + USDC {v['USDC_MCap']}: likidite trendini yorumla.
 
-**4️⃣ Altcoin Sinyalleri**
-ETH {v['ETH_P']} ({v['ETH_C']}), SOL {v['SOL_P']} ({v['SOL_C']}), BNB {v['BNB_P']} rakamsal karşılaştır.
-BTC dominance {v['Dom']} — altcoin sezonu yaklaşıyor mu uzaklaşıyor mu?
-7 günlük performans farkını yorumla.
+**🪙 4. Altcoin & Dominance Analizi**
+BTC dominance {v['Dom']}: yükseliş mi düşüş mü eğiliminde, altcoin sezonu uzak mı yakın mı?
+ETH ({v['ETH_C']} / 7g: {v.get('ETH_7D','—')}), SOL ({v['SOL_C']} / 7g: {v.get('SOL_7D','—')}), BNB ({v['BNB_C']}) — BTC'ye göre güçlü mü zayıf mı?
+Hangi altcoin rölatif güç gösteriyor? Hangisi en zayıf?
+Bu dominance seviyesinde altcoin pozisyonu mantıklı mı?
 
-**5️⃣ Ekonomik Takvim**
-Takvim varsa: hangi veri, saat, beklenti, piyasaya etkisi.
-Takvim boşsa: bu hafta yaklaşan kritik veriler var mı? 
-Takvim boş günlerde hangi faktörler yön belirler (ETF akış, balina, teknik)?
+**📅 5. Ekonomik Takvim & Katalizörler**
+Takvim varsa: hangi veri, piyasaya olası etkisi nedir?
+Bu hafta izlenmesi gereken kritik makro gelişmeler neler?
+Takvim sakin günlerde hangi faktörler (ETF akışı, balina, teknik) yön belirler?
 
-**6️⃣ Öne Çıkan Haberler**
-En kritik 2 haberi seç, BTC/kripto üzerindeki olası etkisini açıkla.
+**📰 6. Öne Çıkan Haberler**
+En kritik 2-3 haberi seç, BTC/kripto üzerindeki olası etkisini rakamsal yorumla.
 
-**7️⃣ Günlük Aksiyon Planı**
-📗 LONG: seviye, hedef, stop-loss (hepsi rakamsal)
-📕 SHORT: seviye, hedef, stop-loss (hepsi rakamsal)
-📒 BEKLE: hangi koşulda beklemek mantıklı
+**🎯 7. Günlük Aksiyon Planı (1-3 Gün)**
+
+📗 LONG Senaryosu:
+  Giriş: (kesin rakam) | Stop-Loss: (kesin rakam) | Hedef 1 / Hedef 2: (kesin rakamlar)
+  Gerekçe: (hangi koşul sağlanırsa giriş yapılır)
+
+📕 SHORT Senaryosu:
+  Giriş: (kesin rakam) | Stop-Loss: (kesin rakam) | Hedef 1 / Hedef 2: (kesin rakamlar)
+  Gerekçe: (hangi koşul sağlanırsa giriş yapılır)
+
+📒 BEKLE Senaryosu:
+  Hangi koşulda beklenmeli? Beklerken izlenecek tetikleyici seviyeler neler?
 
 **⚠️ Bugünün En Kritik Riski** — tek cümle, rakamsal.
 """
 
     resp = client.chat.completions.create(
-        model="google/gemini-2.0-flash-001",
+        model="google/gemini-2.5-flash",
         messages=[{"role":"user","content":prompt}],
-        max_tokens=3000
+        max_tokens=8000
     )
     return resp.choices[0].message.content
 
