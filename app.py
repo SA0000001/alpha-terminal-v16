@@ -1186,7 +1186,7 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 """
                 try:
                     resp = client.chat.completions.create(
-                        model="google/gemini-2.5-flash-preview",
+                        model="google/gemini-2.5-flash",
                         messages=[{"role": "user", "content": prompt}],
                         max_tokens=4000
                     )
