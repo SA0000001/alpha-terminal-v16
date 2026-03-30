@@ -18,7 +18,7 @@ if not OPENROUTER_API_KEY:
 client = OpenAI(base_url="https://openrouter.ai/api/v1", api_key=OPENROUTER_API_KEY)
 
 st.set_page_config(
-    page_title="Serhat Alpha Terminal",
+    page_title="SA Finance Alpha Terminal",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -788,31 +788,48 @@ def build_orderbook_signal(data):
 @st.cache_data(ttl=30)
 def fetch_live_usdt_d():
     try:
-        cg_g = fetch_json_without_env_proxy(
-            "https://api.coingecko.com/api/v3/global",
-            timeout=6,
-        )["data"]
+        tv_text = fetch_text_without_env_proxy(
+            "https://r.jina.ai/http://www.tradingview.com/symbols/USDT.D/?exchange=CRYPTOCAP",
+            timeout=20,
+        )
+        match = re.search(r"Market open\s+([0-9]+(?:\.[0-9]+)?)%R", tv_text)
+        if not match:
+            match = re.search(r"USDT\.D Market open\s+([0-9]+(?:\.[0-9]+)?)\sR%", tv_text)
+        if not match:
+            match = re.search(r"Market closed\s+([0-9]+(?:\.[0-9]+)?)%R", tv_text)
+        if not match:
+            raise ValueError("tradingview usdt.d not found")
         return {
-            "USDT_D": f"%{cg_g['market_cap_percentage']['usdt']:.2f}",
-            "USDT_D_SOURCE": "CoinGecko",
+            "USDT_D": f"%{float(match.group(1)):.2f}",
+            "USDT_D_SOURCE": "TradingView",
         }
     except:
         try:
-            cg2 = fetch_json_without_env_proxy(
-                "https://api.coinpaprika.com/v1/global",
+            cg_g = fetch_json_without_env_proxy(
+                "https://api.coingecko.com/api/v3/global",
                 timeout=6,
-            )
-            total_mc = cg2["market_cap_usd"]
-            ur = fetch_json_without_env_proxy(
-                "https://api.coinpaprika.com/v1/tickers/usdt-tether",
-                timeout=6,
-            )
+            )["data"]
             return {
-                "USDT_D": f"%{ur['quotes']['USD']['market_cap']/total_mc*100:.2f}",
-                "USDT_D_SOURCE": "Coinpaprika",
+                "USDT_D": f"%{cg_g['market_cap_percentage']['usdt']:.2f}",
+                "USDT_D_SOURCE": "CoinGecko",
             }
         except:
-            return {"USDT_D": "—", "USDT_D_SOURCE": "—"}
+            try:
+                cg2 = fetch_json_without_env_proxy(
+                    "https://api.coinpaprika.com/v1/global",
+                    timeout=6,
+                )
+                total_mc = cg2["market_cap_usd"]
+                ur = fetch_json_without_env_proxy(
+                    "https://api.coinpaprika.com/v1/tickers/usdt-tether",
+                    timeout=6,
+                )
+                return {
+                    "USDT_D": f"%{ur['quotes']['USD']['market_cap']/total_mc*100:.2f}",
+                    "USDT_D_SOURCE": "Coinpaprika",
+                }
+            except:
+                return {"USDT_D": "—", "USDT_D_SOURCE": "—"}
 
 
 def format_market_cap_short(value):
@@ -1497,7 +1514,7 @@ st.markdown(
     <div class="terminal-header">
         <div>
             <div class="hero-kicker">Digital Asset Intelligence</div>
-            <h1>⚡ Serhat Alpha Terminal</h1>
+            <h1>⚡ SA Finance Alpha Terminal</h1>
             <div class="header-subtitle">
                 Kripto, makro ve likidite verilerini tek ekranda toplayan daha net bir karar paneli.
                 Önce kısa özeti gör, sonra sekmelerde detaya in.
@@ -1723,10 +1740,6 @@ with tab1:
             "Dry Powder",
             "Stablecoin Dominance",
             [
-                ("TOTAL", data.get("TOTAL_CAP", "—")),
-                ("TOTAL2", data.get("TOTAL2_CAP", "—")),
-                ("TOTAL3", data.get("TOTAL3_CAP", "—")),
-                ("OTHERS", data.get("OTHERS_CAP", "—")),
                 ("Toplam stable", data.get("Total_Stable", "—")),
                 ("Stable.C.D", data.get("STABLE_C_D", "—")),
                 ("USDT market cap", data.get("USDT_MCap", "—")),
@@ -1739,6 +1752,24 @@ with tab1:
             badge_kind=brief["liquidity"]["class"],
             copy=f"Günlük ETF netflow {data.get('ETF_FLOW_TOTAL', '—')} ({data.get('ETF_FLOW_DATE', '—')}) ile toplam stable dominance ve USDT payı aynı panelde; savunmacı akış daha net okunur.",
         )
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    cat("MARKET CAP BREADTH", "📊")
+    render_info_panel(
+        "Breadth",
+        "Piyasa Genisligi",
+        [
+            ("TOTAL", data.get("TOTAL_CAP", "—")),
+            ("TOTAL2", data.get("TOTAL2_CAP", "—")),
+            ("TOTAL3", data.get("TOTAL3_CAP", "—")),
+            ("OTHERS", data.get("OTHERS_CAP", "—")),
+            ("Kaynak", data.get("TOTAL_CAP_SOURCE", "—")),
+        ],
+        badge_text=data.get("TOTAL_CAP_SOURCE", "—"),
+        badge_kind="signal-neutral",
+        copy="TOTAL ailesi ayri bolume alindi; BTC harici ve genis altcoin evrenindeki risk istahi daha net okunur.",
+    )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -2116,9 +2147,12 @@ with tab5:
             ("BTCW Netflow","ETF_FLOW_BTCW"),("GBTC Netflow","ETF_FLOW_GBTC"),
             ("BTC Netflow","ETF_FLOW_BTC"),
         ],
-        "💵 Stablecoin & On-Chain": [
+        "📊 Market Cap Breadth": [
             ("TOTAL","TOTAL_CAP"),("TOTAL2","TOTAL2_CAP"),
             ("TOTAL3","TOTAL3_CAP"),("OTHERS","OTHERS_CAP"),
+            ("Kaynak","TOTAL_CAP_SOURCE"),
+        ],
+        "💵 Stablecoin & On-Chain": [
             ("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),
             ("USDC","USDC_MCap"),("DAI","DAI_MCap"),
             ("Stable.C.D","STABLE_C_D"),("USDT.D","USDT_D"),("USDT Dom Stable","USDT_Dom_Stable"),
