@@ -815,6 +815,106 @@ def fetch_live_usdt_d():
             return {"USDT_D": "—", "USDT_D_SOURCE": "—"}
 
 
+def format_market_cap_short(value):
+    if value is None:
+        return "—"
+    if value >= 1e12:
+        return f"${value/1e12:.2f}T"
+    if value >= 1e9:
+        return f"${value/1e9:.1f}B"
+    if value >= 1e6:
+        return f"${value/1e6:.1f}M"
+    return f"${value:,.0f}"
+
+
+def parse_tradingview_market_cap(text):
+    match = re.search(r"Market open\s+([0-9]+(?:\.[0-9]+)?)\s*([TBM])\s*R USD", text)
+    if not match:
+        match = re.search(r"Market closed\s+([0-9]+(?:\.[0-9]+)?)\s*([TBM])\s*R USD", text)
+    if not match:
+        raise ValueError("tradingview market cap not found")
+
+    value = float(match.group(1))
+    unit = match.group(2)
+    multiplier = {"T": 1e12, "B": 1e9, "M": 1e6}[unit]
+    return value * multiplier
+
+
+@st.cache_data(ttl=30)
+def fetch_tradingview_market_cap_segments():
+    symbols = {
+        "TOTAL": "https://r.jina.ai/http://www.tradingview.com/symbols/TOTAL/",
+        "TOTAL2": "https://r.jina.ai/http://www.tradingview.com/symbols/TOTAL2/",
+        "TOTAL3": "https://r.jina.ai/http://www.tradingview.com/symbols/TOTAL3/",
+        "OTHERS": "https://r.jina.ai/http://www.tradingview.com/symbols/OTHERS/?exchange=CRYPTOCAP",
+    }
+
+    parsed = {}
+    for key, url in symbols.items():
+        parsed[key] = parse_tradingview_market_cap(fetch_text_without_env_proxy(url, timeout=20))
+
+    return {
+        "TOTAL_CAP": format_market_cap_short(parsed["TOTAL"]),
+        "TOTAL2_CAP": format_market_cap_short(parsed["TOTAL2"]),
+        "TOTAL3_CAP": format_market_cap_short(parsed["TOTAL3"]),
+        "OTHERS_CAP": format_market_cap_short(parsed["OTHERS"]),
+        "TOTAL_CAP_NUM": parsed["TOTAL"],
+        "TOTAL2_CAP_NUM": parsed["TOTAL2"],
+        "TOTAL3_CAP_NUM": parsed["TOTAL3"],
+        "OTHERS_CAP_NUM": parsed["OTHERS"],
+        "TOTAL_CAP_SOURCE": "TradingView",
+    }
+
+
+@st.cache_data(ttl=30)
+def fetch_live_market_cap_segments():
+    try:
+        return fetch_tradingview_market_cap_segments()
+    except:
+        try:
+            global_data = fetch_json_without_env_proxy(
+                "https://api.coingecko.com/api/v3/global",
+                timeout=6,
+            )["data"]
+            total_cap_num = global_data["total_market_cap"]["usd"]
+            btc_d = global_data["market_cap_percentage"].get("btc", 0)
+            eth_d = global_data["market_cap_percentage"].get("eth", 0)
+
+            top10 = fetch_json_without_env_proxy(
+                "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false",
+                timeout=8,
+            )
+            top10_sum = sum(item.get("market_cap") or 0 for item in top10)
+
+            total2_num = total_cap_num * (1 - btc_d / 100)
+            total3_num = total_cap_num * (1 - (btc_d + eth_d) / 100)
+            others_num = max(total_cap_num - top10_sum, 0)
+
+            return {
+                "TOTAL_CAP": format_market_cap_short(total_cap_num),
+                "TOTAL2_CAP": format_market_cap_short(total2_num),
+                "TOTAL3_CAP": format_market_cap_short(total3_num),
+                "OTHERS_CAP": format_market_cap_short(others_num),
+                "TOTAL_CAP_NUM": total_cap_num,
+                "TOTAL2_CAP_NUM": total2_num,
+                "TOTAL3_CAP_NUM": total3_num,
+                "OTHERS_CAP_NUM": others_num,
+                "TOTAL_CAP_SOURCE": "CoinGecko fallback",
+            }
+        except:
+            return {
+                "TOTAL_CAP": "—",
+                "TOTAL2_CAP": "—",
+                "TOTAL3_CAP": "—",
+                "OTHERS_CAP": "—",
+                "TOTAL_CAP_NUM": None,
+                "TOTAL2_CAP_NUM": None,
+                "TOTAL3_CAP_NUM": None,
+                "OTHERS_CAP_NUM": None,
+                "TOTAL_CAP_SOURCE": "—",
+            }
+
+
 def render_info_panel(kicker: str, title: str, rows, badge_text: str = "", badge_kind: str = "signal-neutral", copy: str = ""):
     rows_html = "".join(
         f"<div class='panel-row'><span>{label}</span><strong>{value}</strong></div>"
@@ -1385,6 +1485,9 @@ with st.spinner("Piyasa verileri ve türev akışı yükleniyor..."):
     data = veri_motoru()
     data.update(turev_cek())
     data.update(fetch_live_usdt_d())
+    data.update(fetch_live_market_cap_segments())
+    if data.get("Total_Stable_Num") and data.get("TOTAL_CAP_NUM"):
+        data["STABLE_C_D"] = f"%{data['Total_Stable_Num']/data['TOTAL_CAP_NUM']*100:.2f}"
 
 brief = build_market_brief(data)
 
@@ -1620,6 +1723,10 @@ with tab1:
             "Dry Powder",
             "Stablecoin Dominance",
             [
+                ("TOTAL", data.get("TOTAL_CAP", "—")),
+                ("TOTAL2", data.get("TOTAL2_CAP", "—")),
+                ("TOTAL3", data.get("TOTAL3_CAP", "—")),
+                ("OTHERS", data.get("OTHERS_CAP", "—")),
                 ("Toplam stable", data.get("Total_Stable", "—")),
                 ("Stable.C.D", data.get("STABLE_C_D", "—")),
                 ("USDT market cap", data.get("USDT_MCap", "—")),
@@ -1824,6 +1931,7 @@ BTCO: {data.get('ETF_FLOW_BTCO','—')} | EZBC: {data.get('ETF_FLOW_EZBC','—')
 BTCW: {data.get('ETF_FLOW_BTCW','—')} | GBTC: {data.get('ETF_FLOW_GBTC','—')} | BTC: {data.get('ETF_FLOW_BTC','—')}
 
 📌 STABLECOİN LİKİDİTESİ:
+TOTAL: {data.get('TOTAL_CAP','—')} | TOTAL2: {data.get('TOTAL2_CAP','—')} | TOTAL3: {data.get('TOTAL3_CAP','—')} | OTHERS: {data.get('OTHERS_CAP','—')}
 Toplam: {data.get('Total_Stable','—')} | USDT: {data.get('USDT_MCap','—')} | USDC: {data.get('USDC_MCap','—')} | DAI: {data.get('DAI_MCap','—')}
 Stable.C.D (Piyasa %): {data.get('STABLE_C_D','—')} | USDT.D (Piyasa %): {data.get('USDT_D','—')} | USDT Dom (Stable içi): {data.get('USDT_Dom_Stable','—')}
 
@@ -1894,6 +2002,7 @@ DOT: {data.get('DOT_P','—')} | LINK: {data.get('LINK_P','—')}
 **🏦 3. KURUMSAL AKIŞ & LİKİDİTE ANALİZİ**
 - Günlük ETF netflow {data.get('ETF_FLOW_TOTAL','—')} ({data.get('ETF_FLOW_DATE','—')}): kurumsal para girişi/çıkışı trendi ne?
 - ETF bazlı akış dağılımı BTC fiyatıyla örtüşüyor mu?
+- TOTAL {data.get('TOTAL_CAP','—')}, TOTAL2 {data.get('TOTAL2_CAP','—')}, TOTAL3 {data.get('TOTAL3_CAP','—')} ve OTHERS {data.get('OTHERS_CAP','—')}: risk iştahı büyüklerde mi, geniş altcoin tarafında mı yoğunlaşıyor?
 - Stablecoin toplam {data.get('Total_Stable','—')}: piyasaya hazır "barut" var mı?
 - Stable.C.D {data.get('STABLE_C_D','—')} ve USDT.D {data.get('USDT_D','—')}: toplam stable parkı ile USDT özel talebi aynı şeyi mi söylüyor?
 - Likidite analizi: para kripto'ya mı giriyor, stablecoin'de mi bekliyor?
@@ -2008,6 +2117,8 @@ with tab5:
             ("BTC Netflow","ETF_FLOW_BTC"),
         ],
         "💵 Stablecoin & On-Chain": [
+            ("TOTAL","TOTAL_CAP"),("TOTAL2","TOTAL2_CAP"),
+            ("TOTAL3","TOTAL3_CAP"),("OTHERS","OTHERS_CAP"),
             ("Toplam Stable","Total_Stable"),("USDT","USDT_MCap"),
             ("USDC","USDC_MCap"),("DAI","DAI_MCap"),
             ("Stable.C.D","STABLE_C_D"),("USDT.D","USDT_D"),("USDT Dom Stable","USDT_Dom_Stable"),
