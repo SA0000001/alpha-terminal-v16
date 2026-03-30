@@ -256,7 +256,7 @@ def ai_raporu(v, takvim, haberler):
     takvim_str = "\n".join(f"- {x}" for x in takvim) if takvim else "- Veri yok"
     haber_str = "\n".join(f"- {x}" for x in haberler) if haberler else "- Haber yok"
     prompt = f"""
-Sen SA Finance Alpha Terminal icin sabah bulteni yazan Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisi ve quant analistsin.
+Sen SA Finance Daily icin Makro Bülten yazan 20 yıllık deneyime sahip bir makro-kripto fon yöneticisi ve quant analistsin.
 Turkce, profesyonel, rakamsal bir bulten yaz. Her iddiayi sayi ile destekle. Derinlikli, rakamsal ve eyleme dönüşebilir bir bülten yaz.
 Asagidaki basliklari aynen kullan ve hicbirini atlama.
 
@@ -283,7 +283,7 @@ HABERLER:
 {haber_str}
 
 ZORUNLU KURALLAR:
-- Tam olarak asagidaki 7 basligi kullan.
+- Tam olarak asagidaki 8 basligi kullan.
 - Her baslik altinda en az 2 cumle olsun.
 - 5. bolum, TAKVIM listesinden en az bir maddeyi anip olasi piyasa etkisini yorumlasin.
 - 6. bolum, HABERLER listesinden en az bir maddeyi anip BTC/kripto etkisini yorumlasin.
@@ -306,13 +306,14 @@ ZORUNLU KURALLAR:
 - Emtia yorumunda altini guvenli liman ve enflasyon, petrolu buyume, enflasyon ve jeopolitik risk cercevesinde degerlendir.
 
 KULLANILACAK BASLIKLAR:
-1. SA Finance Alpha Terminal Sabah Bulteni
+1. SA Finance Daily Makro Bulteni
 2. Makro Ortam ve Risk Istahi
 3. BTC, Turev ve Order Book Analizi
-4. ETF, Stablecoin ve Market Cap Breadth
+4. ETF, Stablecoin, Market Cap Breadth ve Altcoin Analizleri 
 5. Ekonomik Takvim ve Olasi Etkiler
 6. Onemli Haberler ve Piyasa Yorumu
-7. Long / Short / Bekle ve Kritik Risk
+7. Eylem Planı (Long / Short / Bekle) 
+8. Kritik Riskler
 """
     resp = client.chat.completions.create(model="google/gemini-2.5-flash", messages=[{"role":"user","content":prompt}], max_tokens=8000)
     return resp.choices[0].message.content
