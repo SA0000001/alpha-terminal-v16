@@ -263,14 +263,14 @@ Asagidaki basliklari aynen kullan ve hicbirini atlama.
 TARIH: {bugun}
 BTC: {v.get('BTC_P','—')} | 24s {v.get('BTC_C','—')} | 7g {v.get('BTC_7D','—')} | Hacim {v.get('Vol_24h','—')}
 DOMINANCE: BTC {v.get('Dom','—')} | ETH {v.get('ETH_Dom','—')}
-MARKET CAP BREADTH: TOTAL {v.get('TOTAL_CAP','—')} | TOTAL2 {v.get('TOTAL2_CAP','—')} | TOTAL3 {v.get('TOTAL3_CAP','—')} | OTHERS {v.get('OTHERS_CAP','—')} | Kaynak {v.get('TOTAL_CAP_SOURCE','—')}
-TANIMLAR: TOTAL = toplam kripto piyasa degeri. TOTAL2 = BTC haric toplam piyasa degeri. TOTAL3 = BTC ve ETH haric toplam piyasa degeri. OTHERS = ilk 10 haric piyasa degeri.
+MARKET CAP BREADTH: TOTAL {v.get('TOTAL_CAP','—')} | TOTAL2 {v.get('TOTAL2_CAP','—')} | Kaynak {v.get('TOTAL_CAP_SOURCE','—')}
+TANIMLAR: TOTAL = toplam kripto piyasa degeri. TOTAL2 = BTC haric toplam piyasa degeri.
 ETF: Tarih {v.get('ETF_FLOW_DATE','—')} | Toplam {v.get('ETF_FLOW_TOTAL','—')} | IBIT {v.get('ETF_FLOW_IBIT','—')} | FBTC {v.get('ETF_FLOW_FBTC','—')} | GBTC {v.get('ETF_FLOW_GBTC','—')}
 STABLECOINS: Toplam {v.get('Total_Stable','—')} | Stable.C.D {v.get('STABLE_C_D','—')} | USDT.D {v.get('USDT_D','—')} | USDT kaynak {v.get('USDT_D_SOURCE','—')} | USDT stable dominance {v.get('USDT_Dom_Stable','—')}
 STABLE TANIMLARI: Stable.C.D = toplam stablecoin market cap / toplam kripto market cap. USDT.D = USDT market cap / toplam kripto market cap. USDT stable dominance = USDT market cap / toplam stablecoin market cap.
 ORDER BOOK: {v.get('ORDERBOOK_SIGNAL','—')} | Kraken {v.get('Sup_Wall','—')} / {v.get('Res_Wall','—')} | OKX {v.get('OKX_Sup_Wall','—')} / {v.get('OKX_Res_Wall','—')} | KuCoin {v.get('KUCOIN_Sup_Wall','—')} / {v.get('KUCOIN_Res_Wall','—')} | Gate.io {v.get('GATE_Sup_Wall','—')} / {v.get('GATE_Res_Wall','—')} | Coinbase {v.get('COINBASE_Sup_Wall','—')} / {v.get('COINBASE_Res_Wall','—')}
 TUREV: OI {v.get('OI','—')} | Funding {v.get('FR','—')} | Taker {v.get('Taker','—')} | L/S {v.get('LS_Ratio','—')} ({v.get('LS_Signal','—')})
-MAKRO: FED {v.get('FED','—')} | M2 {v.get('M2','—')} | US10Y {v.get('US10Y','—')} ({v.get('US10Y_C','—')}) | DXY {v.get('DXY','—')} ({v.get('DXY_C','—')}) | VIX {v.get('VIX','—')} ({v.get('VIX_C','—')})
+MAKRO: FED {v.get('FED','—')} | M2 son 12 ay degisimi {v.get('M2','—')} | US10Y {v.get('US10Y','—')} ({v.get('US10Y_C','—')}) | DXY {v.get('DXY','—')} ({v.get('DXY_C','—')}) | VIX {v.get('VIX','—')} ({v.get('VIX_C','—')})
 ENDEKSLER: SP500 {v.get('SP500','—')} ({v.get('SP500_C','—')}) | NASDAQ {v.get('NASDAQ','—')} ({v.get('NASDAQ_C','—')}) | DAX {v.get('DAX','—')} ({v.get('DAX_C','—')}) | NIKKEI {v.get('NIKKEI','—')} ({v.get('NIKKEI_C','—')})
 FOREX: EURUSD {v.get('EURUSD','—')} ({v.get('EURUSD_C','—')}) | USDJPY {v.get('USDJPY','—')} ({v.get('USDJPY_C','—')}) | USDTRY {v.get('USDTRY','—')} ({v.get('USDTRY_C','—')})
 EMTIALAR: GOLD {v.get('GOLD','—')} ({v.get('GOLD_C','—')}) | SILVER {v.get('SILVER','—')} ({v.get('SILVER_C','—')}) | OIL {v.get('OIL','—')} ({v.get('OIL_C','—')}) | NATGAS {v.get('NATGAS','—')} ({v.get('NATGAS_C','—')})
@@ -295,15 +295,17 @@ ZORUNLU KURALLAR:
 - Haftalik altcoin yorumu yazarken yalnizca ALTCOIN_7G satirini kullan. ALTCOIN_24S satiri haftalik sonuc cikarmak icin kullanilamaz.
 - 7 gunluk relatif guc cumlesinde ETH/SOL/BNB/XRP/ADA/AVAX/LINK/DOT icin yazilan her yuzde mutlaka ilgili 7g veri satirindaki sayiyla ayni olmali.
 - VIX ve M2 icin haftalik, onceki hafta, degisim hizi veya yuzdesel periyot farki uydurma. Elinde sadece mevcut seviye varsa yalnizca mevcut seviyeyi yorumla.
-- VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen M2 degeri kullanilabilir. Gecen hafta, onceki ay, gunluk degisim veya trend hizi uydurulamaz.
-- TOTAL, TOTAL2, TOTAL3 ve OTHERS tanimlarini yukaridaki gibi kullan; TOTAL3'u asla ilk 10 disi olarak anlatma. OTHERS'i asla BTC ve ETH harici toplam piyasa degeri olarak anlatma.
-- Her iddiayı mutlaka rakamla destekle. Örnek; "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
+- VIX icin sadece mevcut seviye ve varsa gunluk degisim; M2 icin sadece verilen "M2 son 12 ay degisimi" degeri kullanilabilir. M2'yi gunluk, haftalik veya aylik yeni degisim gibi yazma; acikca 12 aylik para arzi degisimi olarak anlat.
+- Market Cap Breadth yorumunda sadece TOTAL ve TOTAL2 kullan. TOTAL3 ve OTHERS'i raporda anma.
+- Her iddiayı mutlaka rakamla destekle. "VIX yüksek" değil, "VIX {v['VIX']} ({v.get('VIX_C','—')}) seviyesinde" yaz.
 - Tüm veri kategorilerini mutlaka kullan.
 
 - Makro bolumde yalnizca terminalde gunluk degisimi olan metriklerde gunluk yuzde degisimi kullan: US10Y_C, DXY_C, VIX_C, SP500_C, NASDAQ_C, DAX_C, NIKKEI_C, EURUSD_C, USDJPY_C, USDTRY_C, GOLD_C, SILVER_C, OIL_C, NATGAS_C.
 - FED ve M2 icin gunluk degisim verme; bu iki metrikte sadece mevcut seviye yorumlanabilir.
 - Makro Ortam ve Risk Istahi bolumunde GOLD ve OIL icin en az birer ayri cumle yorum zorunlu.
 - Emtia yorumunda altini guvenli liman ve enflasyon, petrolu buyume, enflasyon ve jeopolitik risk cercevesinde degerlendir.
+- 4. bolumde altcoinlerin genel durumunu anlatan ayri bir paragraf yaz. Bu paragraf once BTC 7g ile ALTCOIN_7G verilerini ayni periyotta karsilastirsin, sonra ALTCOIN_24S verileriyle kisa vadeli toparlanma veya zayifligi ayri bir cumlede anlatsin.
+- Altcoin paragrafinda "genel durum" sonucu net olsun: haftalik bazda BTC'ye gore goreceli guc mu zayiflik mi var, 24 saatlik bazda senkron toparlanma mi ayrisma mi var bunu acikca soyle.
 
 KULLANILACAK BASLIKLAR:
 1. SA Finance Alpha Terminal Sabah Bulteni
