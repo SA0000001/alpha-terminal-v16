@@ -2216,7 +2216,7 @@ with tab1:
         st.markdown("<br>", unsafe_allow_html=True)
         cat("BUGÜNÜN HABER BAŞLIKLARI", "📰")
         news_cols = st.columns(len(top_news))
-        for col, item in zip(news_cols, top_news):
+        for col, item in top_news:
             with col:
                 st.markdown(f"""
                 <div class="news-card">
@@ -2539,8 +2539,8 @@ with tab5:
     cur_price_str   = f"${liq_cur:,.0f}" if liq_cur else data.get("BTC_P", "—")
 
     # ── BAŞLIK ÖZET BANDI ──────────────────────────────────────
-    total_stack = upper_stack + lower_stack if (upper_stack and lower_stack) else 1
-    upper_pct = round(upper_stack / total_stack * 100) if total_stack else 50
+    total_stack = (upper_stack + lower_stack) if (upper_stack + lower_stack) > 0 else 1
+    upper_pct = round((upper_stack / total_stack) * 100) if (upper_stack + lower_stack) > 0 else 50
     lower_pct = 100 - upper_pct
 
     # Kaynak durum badge'leri
@@ -2597,9 +2597,9 @@ with tab5:
                     <span style="font-family:var(--mono);font-size:0.7em;color:var(--red);min-width:60px;">
                         ⬇ {lower_pct}%
                     </span>
-                    <div style="flex:1;height:8px;border-radius:4px;background:var(--bg3);overflow:hidden;">
-                        <div style="height:100%;width:{lower_pct}%;background:linear-gradient(90deg,var(--red),var(--yellow));
-                                     border-radius:4px 0 0 4px;"></div>
+                    <div style="flex:1;height:8px;border-radius:4px;background:var(--bg3);display:flex;overflow:hidden;">
+                        <div style="height:100%;width:{lower_pct}%;background:linear-gradient(90deg,var(--red),var(--yellow));"></div>
+                        <div style="height:100%;width:{upper_pct}%;background:linear-gradient(90deg,rgba(0,255,136,0.4),var(--green));"></div>
                     </div>
                     <span style="font-family:var(--mono);font-size:0.7em;color:var(--green);min-width:60px;
                                   text-align:right;">⬆ {upper_pct}%</span>
