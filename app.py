@@ -1,9 +1,10 @@
-import os, re
+import os, re, math
 import streamlit as st
 import requests
 import yfinance as yf
 from openai import OpenAI
 import pandas as pd
+import plotly.graph_objects as go
 import streamlit.components.v1 as components
 from dotenv import load_dotenv
 
@@ -785,6 +786,265 @@ def build_orderbook_signal(data):
     }
 
 
+def format_billions(value):
+    if value is None:
+        return "—"
+    if value >= 1_000_000_000:
+        return f"${value/1_000_000_000:.2f}B"
+    if value >= 1_000_000:
+        return f"${value/1_000_000:.1f}M"
+    return f"${value:,.0f}"
+
+
+def format_price_level(value):
+    if value is None:
+        return "—"
+    return f"${value:,.0f}"
+
+
+def dominant_liq_bucket(row_values, labels):
+    if not row_values:
+        return "—"
+    idx = max(range(len(row_values)), key=lambda i: row_values[i])
+    return labels[idx]
+
+
+def build_liquidation_heatmap_figure(liq):
+    prices = liq.get("LIQ_PRICE_LEVELS") or []
+    labels = liq.get("LIQ_HEATMAP_LABELS") or []
+    z = liq.get("LIQ_HEATMAP_Z") or []
+    current_price = liq.get("LIQ_CURRENT_PRICE_NUM")
+
+    fig = go.Figure()
+    if prices and labels and z:
+        fig.add_trace(
+            go.Heatmap(
+                z=z,
+                x=labels,
+                y=prices,
+                colorscale=[
+                    [0.0, "#08111f"],
+                    [0.18, "#123557"],
+                    [0.38, "#00a8b5"],
+                    [0.58, "#ffd166"],
+                    [0.78, "#ff7f50"],
+                    [1.0, "#ff3b5c"],
+                ],
+                zmin=0,
+                zmax=100,
+                hovertemplate="Seviye: $%{y:,.0f}<br>Bant: %{x}<br>Yogunluk: %{z:.1f}<extra></extra>",
+                colorbar=dict(title="Yogunluk"),
+            )
+        )
+
+    if current_price:
+        fig.add_hline(
+            y=current_price,
+            line_width=2,
+            line_dash="dot",
+            line_color="#ffffff",
+            annotation_text=f"BTC {current_price:,.0f}",
+            annotation_position="top left",
+        )
+
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=8, r=8, t=20, b=8),
+        font=dict(color="#c8d8e8", family="Space Mono"),
+        xaxis=dict(title="", side="top", tickfont=dict(size=11)),
+        yaxis=dict(title="BTC fiyat seviyeleri", tickprefix="$", separatethousands=True),
+        height=640,
+    )
+    return fig
+
+
+@st.cache_data(ttl=45)
+def fetch_estimated_liquidation_map(btc_price_hint=""):
+    leverage_buckets = [
+        ("Long 5x", 5, "long", 0.62),
+        ("Long 10x", 10, "long", 0.86),
+        ("Long 25x", 25, "long", 1.15),
+        ("Long 50x", 50, "long", 0.96),
+        ("Long 100x", 100, "long", 0.72),
+        ("Short 5x", 5, "short", 0.62),
+        ("Short 10x", 10, "short", 0.86),
+        ("Short 25x", 25, "short", 1.15),
+        ("Short 50x", 50, "short", 0.96),
+        ("Short 100x", 100, "short", 0.72),
+    ]
+
+    sources = []
+
+    try:
+        mark = fetch_json_without_env_proxy("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT", timeout=8)
+        oi = fetch_json_without_env_proxy("https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT", timeout=8)
+        ticker = fetch_json_without_env_proxy("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT", timeout=8)
+        sources.append({
+            "exchange": "Binance",
+            "price": float(mark["markPrice"]),
+            "oi_usd": float(oi["openInterest"]) * float(mark["markPrice"]),
+            "volume_usd": float(ticker["quoteVolume"]),
+        })
+    except:
+        pass
+
+    try:
+        mark = fetch_json_without_env_proxy("https://www.okx.com/api/v5/public/mark-price?instType=SWAP&instId=BTC-USDT-SWAP", timeout=8)
+        oi = fetch_json_without_env_proxy("https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=BTC-USDT-SWAP", timeout=8)
+        ticker = fetch_json_without_env_proxy("https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT-SWAP", timeout=8)
+        mark_px = float(mark["data"][0]["markPx"])
+        oi_row = oi["data"][0]
+        sources.append({
+            "exchange": "OKX",
+            "price": mark_px,
+            "oi_usd": float(oi_row.get("oiUsd") or 0),
+            "volume_usd": float(ticker["data"][0].get("volCcy24h") or 0),
+        })
+    except:
+        pass
+
+    try:
+        ticker = fetch_json_without_env_proxy("https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT", timeout=8)
+        row = ticker["result"]["list"][0]
+        sources.append({
+            "exchange": "Bybit",
+            "price": float(row["markPrice"]),
+            "oi_usd": float(row["openInterestValue"]),
+            "volume_usd": float(row["turnover24h"]),
+        })
+    except:
+        pass
+
+    if not sources:
+        return {
+            "LIQ_SIGNAL": "Veri alinmadi",
+            "LIQ_SIGNAL_CLASS": "signal-neutral",
+            "LIQ_BIAS": "—",
+            "LIQ_NEAREST_BELOW": "—",
+            "LIQ_NEAREST_ABOVE": "—",
+            "LIQ_STRONGEST_BELOW": "—",
+            "LIQ_STRONGEST_ABOVE": "—",
+            "LIQ_SOURCES": "—",
+            "LIQ_MODEL_NOTE": "Tahmini model icin futures veri kaynagi alinamadi.",
+            "LIQ_SOURCE_ROWS": [],
+            "LIQ_PRICE_LEVELS": [],
+            "LIQ_HEATMAP_LABELS": [],
+            "LIQ_HEATMAP_Z": [],
+            "LIQ_CURRENT_PRICE_NUM": None,
+        }
+
+    current_prices = [row["price"] for row in sources if row.get("price")]
+    current_price = sum(current_prices) / len(current_prices) if current_prices else None
+    if not current_price:
+        hinted = parse_number(btc_price_hint)
+        current_price = hinted if hinted else None
+
+    oi_max = max((row["oi_usd"] for row in sources if row.get("oi_usd")), default=1.0)
+    vol_max = max((row["volume_usd"] for row in sources if row.get("volume_usd")), default=1.0)
+
+    for row in sources:
+        oi_norm = (row["oi_usd"] / oi_max) if oi_max else 0
+        vol_norm = (row["volume_usd"] / vol_max) if vol_max else 0
+        row["weight"] = max(0.22, 0.65 * oi_norm + 0.35 * vol_norm)
+
+    pct_steps = [step / 2 for step in range(-36, 37)]
+    price_levels = [current_price * (1 + pct / 100) for pct in pct_steps]
+    labels = [item[0] for item in leverage_buckets]
+    z = [[0.0 for _ in labels] for _ in price_levels]
+
+    for row in sources:
+        exchange_weight = row["weight"]
+        for col_idx, (_, lev, side, bucket_weight) in enumerate(leverage_buckets):
+            distance_ratio = 0.92 / lev
+            liq_price = current_price * (1 - distance_ratio if side == "long" else 1 + distance_ratio)
+            sigma = current_price * (0.004 + 0.018 / math.sqrt(lev))
+            base_intensity = exchange_weight * bucket_weight
+            for price_idx, level in enumerate(price_levels):
+                distance = (level - liq_price) / sigma
+                z[price_idx][col_idx] += base_intensity * math.exp(-0.5 * distance * distance)
+
+    max_intensity = max((max(row) for row in z), default=0.0)
+    if max_intensity > 0:
+        z = [[round((cell / max_intensity) * 100, 1) for cell in row] for row in z]
+
+    long_labels = labels[:5]
+    short_labels = labels[5:]
+    below_rows = []
+    above_rows = []
+    for idx, level in enumerate(price_levels):
+        long_score = sum(z[idx][:5])
+        short_score = sum(z[idx][5:])
+        if level < current_price:
+            below_rows.append({
+                "price": level,
+                "score": long_score,
+                "bucket": dominant_liq_bucket(z[idx][:5], long_labels),
+            })
+        if level > current_price:
+            above_rows.append({
+                "price": level,
+                "score": short_score,
+                "bucket": dominant_liq_bucket(z[idx][5:], short_labels),
+            })
+
+    meaningful_below = [row for row in below_rows if row["score"] >= 18]
+    meaningful_above = [row for row in above_rows if row["score"] >= 18]
+    nearest_below = min(meaningful_below or below_rows, key=lambda row: abs(current_price - row["price"]), default=None)
+    nearest_above = min(meaningful_above or above_rows, key=lambda row: abs(current_price - row["price"]), default=None)
+    strongest_below = max(below_rows, key=lambda row: row["score"], default=None)
+    strongest_above = max(above_rows, key=lambda row: row["score"], default=None)
+
+    upper_stack = sum(row["score"] for row in sorted(above_rows, key=lambda row: row["score"], reverse=True)[:5])
+    lower_stack = sum(row["score"] for row in sorted(below_rows, key=lambda row: row["score"], reverse=True)[:5])
+
+    if upper_stack > lower_stack * 1.12:
+        signal = "Yukari squeeze cepleri yogun"
+        bias = "Short liquidation alanlari daha kalabalik."
+        signal_class = "signal-long"
+    elif lower_stack > upper_stack * 1.12:
+        signal = "Asagi flush cepleri yogun"
+        bias = "Long liquidation alanlari daha kalabalik."
+        signal_class = "signal-short"
+    else:
+        signal = "Likidasyon dagilimi dengeli"
+        bias = "Ust ve alt tarafta benzer yogunluk var."
+        signal_class = "signal-neutral"
+
+    source_rows = [
+        {
+            "Borsa": row["exchange"],
+            "Mark": format_price_level(row["price"]),
+            "OI (USD)": format_billions(row["oi_usd"]),
+            "24s Hacim": format_billions(row["volume_usd"]),
+            "Agirlik": f"{row['weight']:.2f}",
+        }
+        for row in sorted(sources, key=lambda item: item["weight"], reverse=True)
+    ]
+
+    def cluster_label(row, suffix):
+        if not row:
+            return "—"
+        return f"{format_price_level(row['price'])} · {row['bucket']} · {suffix}"
+
+    return {
+        "LIQ_SIGNAL": signal,
+        "LIQ_SIGNAL_CLASS": signal_class,
+        "LIQ_BIAS": bias,
+        "LIQ_NEAREST_BELOW": cluster_label(nearest_below, "en yakin long flush"),
+        "LIQ_NEAREST_ABOVE": cluster_label(nearest_above, "en yakin short squeeze"),
+        "LIQ_STRONGEST_BELOW": cluster_label(strongest_below, "en guclu alt cep"),
+        "LIQ_STRONGEST_ABOVE": cluster_label(strongest_above, "en guclu ust cep"),
+        "LIQ_SOURCES": "Binance · OKX · Bybit",
+        "LIQ_MODEL_NOTE": "Tahmini model; futures mark price, open interest ve 24s hacim agirliklariyla uretilir. Ham gizli pozisyon verisi degildir.",
+        "LIQ_SOURCE_ROWS": source_rows,
+        "LIQ_PRICE_LEVELS": [round(level, 2) for level in price_levels],
+        "LIQ_HEATMAP_LABELS": labels,
+        "LIQ_HEATMAP_Z": z,
+        "LIQ_CURRENT_PRICE_NUM": round(current_price, 2),
+    }
+
+
 @st.cache_data(ttl=30)
 def fetch_live_usdt_d():
     try:
@@ -1503,6 +1763,7 @@ with st.spinner("Piyasa verileri ve türev akışı yükleniyor..."):
     data.update(turev_cek())
     data.update(fetch_live_usdt_d())
     data.update(fetch_live_market_cap_segments())
+    data.update(fetch_estimated_liquidation_map(data.get("BTC_P", "—")))
     if data.get("Total_Stable_Num") and data.get("TOTAL_CAP_NUM"):
         data["STABLE_C_D"] = f"%{data['Total_Stable_Num']/data['TOTAL_CAP_NUM']*100:.2f}"
 
@@ -1591,7 +1852,7 @@ with st.sidebar:
     st.markdown("""
 **Veri Kaynakları:**  
 `Coinpaprika` · `Kraken` · `OKX` · `KuCoin` · `Gate.io` · `Coinbase`  
-`DeFiLlama` · `yFinance` · `TradingView`  
+`Binance Futures` · `Bybit` · `DeFiLlama` · `yFinance` · `TradingView`  
 `FRED` · `CoinDesk`
 
 **Model:** `Gemini 2.5 Flash`  
@@ -1599,11 +1860,12 @@ with st.sidebar:
 """)
 
 # Tab yapısı
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     "₿  BİTCOİN & KRİPTO",
     "🌍  MAKRO & PİYASALAR",
     "📊  GRAFİK & RAPOR",
     "📰  HABERLER",
+    "🔥  LIQUIDATION HEATMAP",
     "⚙️  TÜM METRİKLER"
 ])
 
@@ -2108,8 +2370,57 @@ with tab4:
         "width":"100%","height":"800","colorTheme":"dark","locale":"tr"}</script></div>""", height=820)
 
 
-# ── TAB 5: TÜM METRİKLER ─────────────────────────────────────
+# ── TAB 5: LIQUIDATION HEATMAP ───────────────────────────────
 with tab5:
+    cat("ESTIMATED LIQUIDATION HEATMAP", "🔥")
+    st.caption("Bu panel tahmini bir modeldir; Binance, OKX ve Bybit futures mark price, open interest ve 24s hacim verilerinden uretilir.")
+
+    col_heatmap, col_liq_side = st.columns([1.85, 1])
+    with col_heatmap:
+        fig = build_liquidation_heatmap_figure(data)
+        st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
+
+    with col_liq_side:
+        render_info_panel(
+            data.get("LIQ_SOURCES", "Binance · OKX · Bybit"),
+            "Likidasyon Ozeti",
+            [
+                ("Sinyal", data.get("LIQ_SIGNAL", "—")),
+                ("Yapisal bias", data.get("LIQ_BIAS", "—")),
+                ("En yakin alt cep", data.get("LIQ_NEAREST_BELOW", "—")),
+                ("En yakin ust cep", data.get("LIQ_NEAREST_ABOVE", "—")),
+                ("En guclu alt cep", data.get("LIQ_STRONGEST_BELOW", "—")),
+                ("En guclu ust cep", data.get("LIQ_STRONGEST_ABOVE", "—")),
+            ],
+            badge_text=data.get("LIQ_SIGNAL", "—"),
+            badge_kind=data.get("LIQ_SIGNAL_CLASS", "signal-neutral"),
+            copy=data.get("LIQ_MODEL_NOTE", "Tahmini likidasyon modeli, kamuya acik futures verileriyle olusturulur."),
+        )
+
+    source_rows = data.get("LIQ_SOURCE_ROWS", [])
+    if source_rows:
+        st.markdown("<br>", unsafe_allow_html=True)
+        cat("FUTURES KAYNAK AGIRLIKLARI", "📡")
+        st.dataframe(pd.DataFrame(source_rows), use_container_width=True, hide_index=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    render_info_panel(
+        "Model Notes",
+        "Nasil Okunur?",
+        [
+            ("Long 25x / 50x", "Fiyat duserse alta dogru long flush ceplerini gosterir."),
+            ("Short 25x / 50x", "Fiyat yukselirse ustteki short squeeze ceplerini gosterir."),
+            ("Yakin cep", "Fiyata en yakin yogun tasfiye bolgesini verir."),
+            ("Guclu cep", "Toplam yogunlugu en yuksek tasfiye cebini verir."),
+        ],
+        badge_text="Estimated model",
+        badge_kind="signal-neutral",
+        copy="Gercek gizli pozisyonlari degil, kamuya acik futures veri setlerinden tahmini yogunluk katmani uretir.",
+    )
+
+
+# ── TAB 6: TÜM METRİKLER ─────────────────────────────────────
+with tab6:
     st.subheader("⚙️ Tüm Metrikler — Ham Veri")
     sections = {
         "₿ BTC & Kripto": [
@@ -2122,6 +2433,12 @@ with tab5:
             ("OI","OI"),("Funding Rate","FR"),("Taker B/S","Taker"),
             ("L/S Oranı","LS_Ratio"),("Long %","Long_Pct"),("Short %","Short_Pct"),
             ("L/S Sinyal","LS_Signal"),("Korku/Açgözlülük","FNG"),("FNG Dün","FNG_PREV"),
+        ],
+        "🔥 Liquidation Map": [
+            ("Likidasyon Sinyali","LIQ_SIGNAL"),("Likidasyon Bias","LIQ_BIAS"),
+            ("En Yakın Alt Cep","LIQ_NEAREST_BELOW"),("En Yakın Üst Cep","LIQ_NEAREST_ABOVE"),
+            ("En Güçlü Alt Cep","LIQ_STRONGEST_BELOW"),("En Güçlü Üst Cep","LIQ_STRONGEST_ABOVE"),
+            ("Kaynaklar","LIQ_SOURCES"),("Model Notu","LIQ_MODEL_NOTE"),
         ],
         "🐋 Order Book & ETF": [
             ("Destek Duvarı","Sup_Wall"),("Destek Hacim","Sup_Vol"),
