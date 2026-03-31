@@ -875,37 +875,58 @@ def fetch_estimated_liquidation_map(btc_price_hint=""):
     ]
 
     sources = []
+    source_errors = {}
 
-    try:
-        mark = fetch_json_without_env_proxy("https://fapi.binance.com/fapi/v1/premiumIndex?symbol=BTCUSDT", timeout=8)
-        oi = fetch_json_without_env_proxy("https://fapi.binance.com/fapi/v1/openInterest?symbol=BTCUSDT", timeout=8)
-        ticker = fetch_json_without_env_proxy("https://fapi.binance.com/fapi/v1/ticker/24hr?symbol=BTCUSDT", timeout=8)
-        sources.append({
-            "exchange": "Binance",
-            "price": float(mark["markPrice"]),
-            "oi_usd": float(oi["openInterest"]) * float(mark["markPrice"]),
-            "volume_usd": float(ticker["quoteVolume"]),
-        })
-    except:
-        pass
+    # ── Binance Futures (fapi) ─────────────────────────────────
+    # Not: bazı ortamlarda fapi.binance.com yerine dapi (coin-margined) veya
+    # alternatif endpoint kullanılabilir. Birden fazla endpoint dene.
+    binance_ok = False
+    for _attempt, _base in enumerate([
+        "https://fapi.binance.com",
+        "https://fapi1.binance.com",
+        "https://fapi2.binance.com",
+    ]):
+        if binance_ok:
+            break
+        try:
+            mark   = fetch_json_without_env_proxy(f"{_base}/fapi/v1/premiumIndex?symbol=BTCUSDT", timeout=7)
+            oi     = fetch_json_without_env_proxy(f"{_base}/fapi/v1/openInterest?symbol=BTCUSDT", timeout=7)
+            ticker = fetch_json_without_env_proxy(f"{_base}/fapi/v1/ticker/24hr?symbol=BTCUSDT", timeout=7)
+            mark_px = float(mark["markPrice"])
+            sources.append({
+                "exchange": "Binance",
+                "price": mark_px,
+                "oi_usd": float(oi["openInterest"]) * mark_px,
+                "volume_usd": float(ticker["quoteVolume"]),
+            })
+            binance_ok = True
+        except Exception as _e:
+            source_errors["Binance"] = str(_e)[:60]
 
+    # ── OKX Futures ───────────────────────────────────────────
     try:
-        mark = fetch_json_without_env_proxy("https://www.okx.com/api/v5/public/mark-price?instType=SWAP&instId=BTC-USDT-SWAP", timeout=8)
-        oi = fetch_json_without_env_proxy("https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=BTC-USDT-SWAP", timeout=8)
-        ticker = fetch_json_without_env_proxy("https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT-SWAP", timeout=8)
+        mark   = fetch_json_without_env_proxy("https://www.okx.com/api/v5/public/mark-price?instType=SWAP&instId=BTC-USDT-SWAP", timeout=7)
+        oi     = fetch_json_without_env_proxy("https://www.okx.com/api/v5/public/open-interest?instType=SWAP&instId=BTC-USDT-SWAP", timeout=7)
+        ticker = fetch_json_without_env_proxy("https://www.okx.com/api/v5/market/ticker?instId=BTC-USDT-SWAP", timeout=7)
         mark_px = float(mark["data"][0]["markPx"])
-        oi_row = oi["data"][0]
+        oi_row  = oi["data"][0]
+        oi_usd  = float(oi_row.get("oiUsd") or 0)
+        vol_24h = float(ticker["data"][0].get("volCcy24h") or ticker["data"][0].get("vol24h") or 0)
+        # volCcy24h coin cinsinden gelir, USD'ye çevir
+        if vol_24h < 1_000_000:
+            vol_24h = vol_24h * mark_px
         sources.append({
             "exchange": "OKX",
             "price": mark_px,
-            "oi_usd": float(oi_row.get("oiUsd") or 0),
-            "volume_usd": float(ticker["data"][0].get("volCcy24h") or 0),
+            "oi_usd": oi_usd,
+            "volume_usd": vol_24h,
         })
-    except:
-        pass
+    except Exception as _e:
+        source_errors["OKX"] = str(_e)[:60]
 
+    # ── Bybit Futures (Linear USDT) ───────────────────────────
     try:
-        ticker = fetch_json_without_env_proxy("https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT", timeout=8)
+        ticker = fetch_json_without_env_proxy("https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT", timeout=7)
         row = ticker["result"]["list"][0]
         sources.append({
             "exchange": "Bybit",
@@ -913,8 +934,78 @@ def fetch_estimated_liquidation_map(btc_price_hint=""):
             "oi_usd": float(row["openInterestValue"]),
             "volume_usd": float(row["turnover24h"]),
         })
-    except:
-        pass
+    except Exception as _e:
+        source_errors["Bybit"] = str(_e)[:60]
+
+    # ── MEXC Futures ──────────────────────────────────────────
+    try:
+        ticker = fetch_json_without_env_proxy("https://contract.mexc.com/api/v1/contract/ticker?symbol=BTC_USDT", timeout=7)
+        d = ticker["data"]
+        mark_px = float(d.get("lastPrice") or d.get("indexPrice") or 0)
+        oi_coin = float(d.get("holdVol") or 0)          # contract sayısı (1 contract = 0.0001 BTC)
+        vol_24h = float(d.get("volume24") or 0) * mark_px  # volume24 kontrat sayısı
+        if mark_px > 0:
+            sources.append({
+                "exchange": "MEXC",
+                "price": mark_px,
+                "oi_usd": oi_coin * 0.0001 * mark_px,
+                "volume_usd": vol_24h * 0.0001,
+            })
+    except Exception as _e:
+        source_errors["MEXC"] = str(_e)[:60]
+
+    # ── Gate.io Futures (USDT perpetual) ─────────────────────
+    try:
+        ticker = fetch_json_without_env_proxy("https://api.gateio.ws/api/v4/futures/usdt/tickers?contract=BTC_USDT", timeout=7)
+        d = ticker[0] if isinstance(ticker, list) else ticker
+        mark_px = float(d.get("mark_price") or d.get("last") or 0)
+        oi_size = float(d.get("total_size") or 0)          # kontrat sayısı (1 = 0.0001 BTC)
+        vol_24h = float(d.get("volume_24h_settle") or d.get("volume_24h") or 0)
+        if mark_px > 0:
+            sources.append({
+                "exchange": "Gate.io",
+                "price": mark_px,
+                "oi_usd": oi_size * mark_px,        # Gate: total_size USD cinsinden
+                "volume_usd": vol_24h,
+            })
+    except Exception as _e:
+        source_errors["Gate.io"] = str(_e)[:60]
+
+    # ── Coinbase Advanced / International Perpetuals ──────────
+    # Coinbase Intl Exchange BTC-PERP
+    try:
+        ticker = fetch_json_without_env_proxy("https://api.coinbase.com/api/v3/brokerage/market/products/BTC-PERP-INTX/ticker?limit=1", timeout=7)
+        trades = ticker.get("trades") or []
+        best = ticker.get("best_ask") or ticker.get("best_bid") or "0"
+        mark_px = float(best) if float(best) > 0 else None
+        # Coinbase Intl OI endpoint
+        stats = fetch_json_without_env_proxy("https://api.coinbase.com/api/v3/brokerage/market/products/BTC-PERP-INTX", timeout=7)
+        if not mark_px:
+            mark_px = float(stats.get("price") or 0)
+        oi_usd   = float(stats.get("open_interest") or 0)
+        vol_24h  = float(stats.get("volume_24h") or 0)
+        if mark_px > 0 and oi_usd > 0:
+            sources.append({
+                "exchange": "Coinbase",
+                "price": mark_px,
+                "oi_usd": oi_usd,
+                "volume_usd": vol_24h,
+            })
+    except Exception as _e:
+        # Coinbase Exchange spot as last resort (sadece fiyat için)
+        try:
+            spot = fetch_json_without_env_proxy("https://api.exchange.coinbase.com/products/BTC-USD/ticker", timeout=6)
+            mark_px = float(spot.get("price") or 0)
+            vol_24h = float(spot.get("volume") or 0) * mark_px
+            if mark_px > 0:
+                sources.append({
+                    "exchange": "Coinbase",
+                    "price": mark_px,
+                    "oi_usd": 0,               # spot – OI yok
+                    "volume_usd": vol_24h,
+                })
+        except Exception as _e2:
+            source_errors["Coinbase"] = str(_e2)[:60]
 
     if not sources:
         return {
@@ -932,6 +1023,12 @@ def fetch_estimated_liquidation_map(btc_price_hint=""):
             "LIQ_HEATMAP_LABELS": [],
             "LIQ_HEATMAP_Z": [],
             "LIQ_CURRENT_PRICE_NUM": None,
+            "LIQ_SOURCE_ERRORS": source_errors,
+            "LIQ_TOP_BELOW": [],
+            "LIQ_TOP_ABOVE": [],
+            "LIQ_LEV_SUMMARY": [],
+            "LIQ_UPPER_STACK": 0,
+            "LIQ_LOWER_STACK": 0,
         }
 
     current_prices = [row["price"] for row in sources if row.get("price")]
@@ -1080,8 +1177,11 @@ def fetch_estimated_liquidation_map(btc_price_hint=""):
         "LIQ_NEAREST_ABOVE": cluster_label(nearest_above, "en yakin short squeeze"),
         "LIQ_STRONGEST_BELOW": cluster_label(strongest_below, "en guclu alt cep"),
         "LIQ_STRONGEST_ABOVE": cluster_label(strongest_above, "en guclu ust cep"),
-        "LIQ_SOURCES": "Binance · OKX · Bybit",
-        "LIQ_MODEL_NOTE": "Tahmini model; futures mark price, open interest ve 24s hacim agirliklariyla uretilir. Ham gizli pozisyon verisi degildir.",
+        "LIQ_SOURCES": " · ".join(row["exchange"] for row in sources),
+        "LIQ_FAILED_SOURCES": " · ".join(ex for ex in ["Binance","OKX","Bybit","MEXC","Gate.io","Coinbase"] if ex not in [s["exchange"] for s in sources]),
+        "LIQ_SOURCE_COUNT": len(sources),
+        "LIQ_SOURCE_ERRORS": source_errors,
+        "LIQ_MODEL_NOTE": f"Tahmini model; {len(sources)} kaynak (futures mark price, OI, 24s hacim). Ham gizli pozisyon verisi degildir.",
         "LIQ_SOURCE_ROWS": source_rows,
         "LIQ_PRICE_LEVELS": [round(level, 2) for level in price_levels],
         "LIQ_HEATMAP_LABELS": labels,
@@ -2432,6 +2532,10 @@ with tab5:
     liq_lev_summary = data.get("LIQ_LEV_SUMMARY", [])
     upper_stack     = data.get("LIQ_UPPER_STACK", 0)
     lower_stack     = data.get("LIQ_LOWER_STACK", 0)
+    liq_sources_str = data.get("LIQ_SOURCES", "—")
+    liq_failed_str  = data.get("LIQ_FAILED_SOURCES", "—")
+    liq_src_count   = data.get("LIQ_SOURCE_COUNT", 0)
+    liq_src_errors  = data.get("LIQ_SOURCE_ERRORS", {})
     cur_price_str   = f"${liq_cur:,.0f}" if liq_cur else data.get("BTC_P", "—")
 
     # ── BAŞLIK ÖZET BANDI ──────────────────────────────────────
@@ -2439,16 +2543,33 @@ with tab5:
     upper_pct = round(upper_stack / total_stack * 100) if total_stack else 50
     lower_pct = 100 - upper_pct
 
+    # Kaynak durum badge'leri
+    source_badge_html = ""
+    for _ex in ["Binance", "OKX", "Bybit", "MEXC", "Gate.io", "Coinbase"]:
+        _active = _ex in liq_sources_str
+        _color = "var(--green)" if _active else "#ff3b5c44"
+        _border = "rgba(0,255,136,0.3)" if _active else "rgba(255,59,92,0.2)"
+        _status = "●" if _active else "○"
+        source_badge_html += f"""
+        <span style="font-family:var(--mono);font-size:0.62em;padding:3px 8px;
+                      border:1px solid {_border};border-radius:4px;color:{_color};">
+            {_status} {_ex}
+        </span>"""
+
     st.markdown(f"""
     <div style="background:linear-gradient(135deg,#0b1e38,#0d2848);border:1px solid #1e3d6b;
                 border-radius:14px;padding:20px 28px;margin-bottom:18px;position:relative;overflow:hidden;">
         <div style="position:absolute;right:24px;top:50%;transform:translateY(-50%);
                     font-size:4em;opacity:0.07;font-weight:700;">🔥</div>
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px;">
             <span style="font-family:var(--mono);font-size:0.62em;color:var(--accent);
                          letter-spacing:2px;text-transform:uppercase;">ESTIMATED LIQUIDATION MAP</span>
             <span style="font-family:var(--mono);font-size:0.62em;color:var(--muted);">
-                Binance · OKX · Bybit · tahmini model</span>
+                · {liq_src_count}/6 kaynak aktif · tahmini model
+            </span>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
+            {source_badge_html}
         </div>
         <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
             <div>
@@ -2456,7 +2577,7 @@ with tab5:
                     {cur_price_str}
                 </div>
                 <div style="font-family:var(--mono);font-size:0.72em;color:var(--muted);margin-top:2px;">
-                    BTC Mark Fiyatı
+                    BTC Mark Fiyatı (ağırlıklı ort.)
                 </div>
             </div>
             <div style="border-left:1px solid var(--border);padding-left:24px;">
@@ -2627,7 +2748,17 @@ with tab5:
                     )
                 }
             )
-        st.caption("OI ve 24s hacim bazlı ağırlıklı ortalama; Binance kapalı ortamlarda zaman zaman bloklanabilir.")
+        # Başarısız kaynakları göster
+        if liq_src_errors:
+            with st.expander(f"⚠️ {len(liq_src_errors)} kaynak bağlanamadı — detay"):
+                for _ex, _err in liq_src_errors.items():
+                    st.markdown(
+                        f'<span style="font-family:var(--mono);font-size:0.75em;">'
+                        f'<span style="color:var(--red);">✗ {_ex}</span>'
+                        f'<span style="color:var(--muted);"> — {_err}</span></span>',
+                        unsafe_allow_html=True
+                    )
+        st.caption(f"Aktif: {liq_sources_str} · OI + 24s hacim ağırlıklı ortalama kullanılır.")
 
     with col_key:
         cat("NASIL OKUNUR?", "📖")
@@ -2650,15 +2781,21 @@ with tab5:
                     0-100 normalize. 50+ bölgeler yüksek risk taşır.
                     Gerçek pozisyon verisi değil, tahmini modeldir.
                 </div>
-                <div style="border-top:1px solid var(--border);padding-top:8px;">
+                <div style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
                     <span style="color:var(--accent);font-weight:700;">Sıkışma Dağılımı</span><br>
                     Alt vs üst ceplerin toplam yoğunluk karşılaştırması.
                     Ağır olan taraf fiyat hareketi için daha çekici hedef.
+                </div>
+                <div style="border-top:1px solid var(--border);padding-top:8px;">
+                    <span style="color:var(--muted);font-weight:700;">Kaynak Ağırlıkları</span><br>
+                    Binance &gt; OKX &gt; Bybit &gt; MEXC &gt; Gate.io &gt; Coinbase sırasıyla
+                    global futures pazar paylarını yansıtır. Daha fazla kaynak = daha güvenilir model.
                 </div>
             </div>
         </div>
         """, unsafe_allow_html=True)
         st.caption("⚠️ Tahmini model. Gerçek gizli pozisyon verisi değildir.")
+
 
 
 # ── TAB 6: TÜM METRİKLER ─────────────────────────────────────
