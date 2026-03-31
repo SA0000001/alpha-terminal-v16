@@ -1027,6 +1027,51 @@ def fetch_estimated_liquidation_map(btc_price_hint=""):
             return "—"
         return f"{format_price_level(row['price'])} · {row['bucket']} · {suffix}"
 
+    # Top-5 likidasyon cepleri (grafik tablosu için)
+    top_below = sorted(below_rows, key=lambda r: r["score"], reverse=True)[:6]
+    top_above = sorted(above_rows, key=lambda r: r["score"], reverse=True)[:6]
+
+    def pct_from_current(price):
+        return (price - current_price) / current_price * 100
+
+    top_below_table = [
+        {
+            "Fiyat": format_price_level(r["price"]),
+            "Fiyat_Num": r["price"],
+            "Mesafe": f"{pct_from_current(r['price']):.2f}%",
+            "Tip": r["bucket"],
+            "Yogunluk": round(r["score"], 1),
+            "Yon": "⬇ LONG FLUSH",
+        }
+        for r in top_below
+    ]
+    top_above_table = [
+        {
+            "Fiyat": format_price_level(r["price"]),
+            "Fiyat_Num": r["price"],
+            "Mesafe": f"+{pct_from_current(r['price']):.2f}%",
+            "Tip": r["bucket"],
+            "Yogunluk": round(r["score"], 1),
+            "Yon": "⬆ SHORT SQUEEZE",
+        }
+        for r in top_above
+    ]
+
+    # Kaldıraç bazlı özet (hangi kaldıraçta ne kadar yoğunluk)
+    lev_summary = []
+    for col_idx, (lbl, lev, side, _) in enumerate(leverage_buckets):
+        col_scores = [z[row_idx][col_idx] for row_idx in range(len(price_levels))]
+        total_score = sum(col_scores)
+        peak_idx = col_scores.index(max(col_scores)) if col_scores else 0
+        peak_price = price_levels[peak_idx] if price_levels else current_price
+        lev_summary.append({
+            "Bant": lbl,
+            "Kaldıraç": f"{lev}x",
+            "Yön": "LONG" if side == "long" else "SHORT",
+            "Peak Fiyat": format_price_level(peak_price),
+            "Toplam Skor": round(total_score, 1),
+        })
+
     return {
         "LIQ_SIGNAL": signal,
         "LIQ_SIGNAL_CLASS": signal_class,
@@ -1042,6 +1087,11 @@ def fetch_estimated_liquidation_map(btc_price_hint=""):
         "LIQ_HEATMAP_LABELS": labels,
         "LIQ_HEATMAP_Z": z,
         "LIQ_CURRENT_PRICE_NUM": round(current_price, 2),
+        "LIQ_TOP_BELOW": top_below_table,
+        "LIQ_TOP_ABOVE": top_above_table,
+        "LIQ_LEV_SUMMARY": lev_summary,
+        "LIQ_UPPER_STACK": round(upper_stack, 1),
+        "LIQ_LOWER_STACK": round(lower_stack, 1),
     }
 
 
@@ -2370,53 +2420,245 @@ with tab4:
         "width":"100%","height":"800","colorTheme":"dark","locale":"tr"}</script></div>""", height=820)
 
 
-# ── TAB 5: LIQUIDATION HEATMAP ───────────────────────────────
+# ── TAB 5: LİKİDASYON PANELİ ────────────────────────────────
 with tab5:
-    cat("ESTIMATED LIQUIDATION HEATMAP", "🔥")
-    st.caption("Bu panel tahmini bir modeldir; Binance, OKX ve Bybit futures mark price, open interest ve 24s hacim verilerinden uretilir.")
+    liq_signal      = data.get("LIQ_SIGNAL", "—")
+    liq_class       = data.get("LIQ_SIGNAL_CLASS", "signal-neutral")
+    liq_bias        = data.get("LIQ_BIAS", "—")
+    liq_cur         = data.get("LIQ_CURRENT_PRICE_NUM")
+    liq_top_below   = data.get("LIQ_TOP_BELOW", [])
+    liq_top_above   = data.get("LIQ_TOP_ABOVE", [])
+    liq_src_rows    = data.get("LIQ_SOURCE_ROWS", [])
+    liq_lev_summary = data.get("LIQ_LEV_SUMMARY", [])
+    upper_stack     = data.get("LIQ_UPPER_STACK", 0)
+    lower_stack     = data.get("LIQ_LOWER_STACK", 0)
+    cur_price_str   = f"${liq_cur:,.0f}" if liq_cur else data.get("BTC_P", "—")
 
-    col_heatmap, col_liq_side = st.columns([1.85, 1])
-    with col_heatmap:
+    # ── BAŞLIK ÖZET BANDI ──────────────────────────────────────
+    total_stack = upper_stack + lower_stack if (upper_stack and lower_stack) else 1
+    upper_pct = round(upper_stack / total_stack * 100) if total_stack else 50
+    lower_pct = 100 - upper_pct
+
+    st.markdown(f"""
+    <div style="background:linear-gradient(135deg,#0b1e38,#0d2848);border:1px solid #1e3d6b;
+                border-radius:14px;padding:20px 28px;margin-bottom:18px;position:relative;overflow:hidden;">
+        <div style="position:absolute;right:24px;top:50%;transform:translateY(-50%);
+                    font-size:4em;opacity:0.07;font-weight:700;">🔥</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-family:var(--mono);font-size:0.62em;color:var(--accent);
+                         letter-spacing:2px;text-transform:uppercase;">ESTIMATED LIQUIDATION MAP</span>
+            <span style="font-family:var(--mono);font-size:0.62em;color:var(--muted);">
+                Binance · OKX · Bybit · tahmini model</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:24px;flex-wrap:wrap;">
+            <div>
+                <div style="font-family:var(--mono);font-size:2em;font-weight:700;color:#fff;">
+                    {cur_price_str}
+                </div>
+                <div style="font-family:var(--mono);font-size:0.72em;color:var(--muted);margin-top:2px;">
+                    BTC Mark Fiyatı
+                </div>
+            </div>
+            <div style="border-left:1px solid var(--border);padding-left:24px;">
+                <div style="font-family:var(--mono);font-size:0.72em;color:var(--muted);
+                             text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">Genel Sinyal</div>
+                <span class="{liq_class}" style="font-size:0.85em;">{liq_signal}</span>
+                <div style="font-family:var(--mono);font-size:0.7em;color:var(--muted);margin-top:6px;">
+                    {liq_bias}
+                </div>
+            </div>
+            <div style="border-left:1px solid var(--border);padding-left:24px;min-width:200px;">
+                <div style="font-family:var(--mono);font-size:0.72em;color:var(--muted);
+                             text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;">
+                    Sıkışma Dağılımı (Top-5 yoğunluk)
+                </div>
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <span style="font-family:var(--mono);font-size:0.7em;color:var(--red);min-width:60px;">
+                        ⬇ {lower_pct}%
+                    </span>
+                    <div style="flex:1;height:8px;border-radius:4px;background:var(--bg3);overflow:hidden;">
+                        <div style="height:100%;width:{lower_pct}%;background:linear-gradient(90deg,var(--red),var(--yellow));
+                                     border-radius:4px 0 0 4px;"></div>
+                    </div>
+                    <span style="font-family:var(--mono);font-size:0.7em;color:var(--green);min-width:60px;
+                                  text-align:right;">⬆ {upper_pct}%</span>
+                </div>
+                <div style="display:flex;justify-content:space-between;margin-top:4px;">
+                    <span style="font-family:var(--mono);font-size:0.6em;color:var(--muted);">
+                        Long Flush ({lower_stack:.0f})
+                    </span>
+                    <span style="font-family:var(--mono);font-size:0.6em;color:var(--muted);">
+                        Short Squeeze ({upper_stack:.0f})
+                    </span>
+                </div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # ── ANA PANEL: ISSI HARİTA + LİKİDASYON CEPLERİ ──────────
+    col_left, col_right = st.columns([1.6, 1])
+
+    with col_left:
+        cat("LİKİDASYON ISSI HARİTASI", "🌡️")
         fig = build_liquidation_heatmap_figure(data)
         st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-    with col_liq_side:
-        render_info_panel(
-            data.get("LIQ_SOURCES", "Binance · OKX · Bybit"),
-            "Likidasyon Ozeti",
-            [
-                ("Sinyal", data.get("LIQ_SIGNAL", "—")),
-                ("Yapisal bias", data.get("LIQ_BIAS", "—")),
-                ("En yakin alt cep", data.get("LIQ_NEAREST_BELOW", "—")),
-                ("En yakin ust cep", data.get("LIQ_NEAREST_ABOVE", "—")),
-                ("En guclu alt cep", data.get("LIQ_STRONGEST_BELOW", "—")),
-                ("En guclu ust cep", data.get("LIQ_STRONGEST_ABOVE", "—")),
-            ],
-            badge_text=data.get("LIQ_SIGNAL", "—"),
-            badge_kind=data.get("LIQ_SIGNAL_CLASS", "signal-neutral"),
-            copy=data.get("LIQ_MODEL_NOTE", "Tahmini likidasyon modeli, kamuya acik futures verileriyle olusturulur."),
-        )
+        # Kaldıraç özet tablosu
+        st.markdown("<div style='margin-top:8px;'>", unsafe_allow_html=True)
+        cat("KALDIRAÇ BAZLI YOğUNLUK", "📐")
+        if liq_lev_summary:
+            lev_df = pd.DataFrame(liq_lev_summary)
+            # Yön renklendirme için stil
+            def style_yon(val):
+                if val == "LONG":
+                    return "color: #ff3b5c; font-weight: bold;"
+                elif val == "SHORT":
+                    return "color: #00ff88; font-weight: bold;"
+                return ""
+            st.dataframe(
+                lev_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Toplam Skor": st.column_config.ProgressColumn(
+                        "Yoğunluk",
+                        min_value=0,
+                        max_value=max(r["Toplam Skor"] for r in liq_lev_summary) if liq_lev_summary else 100,
+                        format="%.1f",
+                    ),
+                }
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    source_rows = data.get("LIQ_SOURCE_ROWS", [])
-    if source_rows:
-        st.markdown("<br>", unsafe_allow_html=True)
-        cat("FUTURES KAYNAK AGIRLIKLARI", "📡")
-        st.dataframe(pd.DataFrame(source_rows), use_container_width=True, hide_index=True)
+    with col_right:
+        # ── SHORT SQUEEZE CEPLERİ (YUKARI) ─────────────────────
+        cat("⬆ SHORT SQUEEZE CEPLERİ", "🟢")
+        st.caption("Fiyat yükselirse tetiklenecek short likidasyon bölgeleri")
+        if liq_top_above:
+            for i, row in enumerate(liq_top_above):
+                dist_color = "var(--green)" if i == 0 else "var(--text)"
+                bar_width = max(8, min(100, int(row["Yogunluk"])))
+                st.markdown(f"""
+                <div style="background:rgba(0,255,136,0.04);border:1px solid rgba(0,255,136,0.18);
+                             border-left:3px solid var(--green);border-radius:8px;
+                             padding:10px 14px;margin-bottom:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                        <span style="font-family:var(--mono);font-size:0.95em;font-weight:700;
+                                      color:#fff;">{row['Fiyat']}</span>
+                        <span style="font-family:var(--mono);font-size:0.7em;color:var(--green);">
+                            {row['Mesafe']}
+                        </span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <span style="font-family:var(--mono);font-size:0.65em;color:var(--muted);">
+                            {row['Tip']}
+                        </span>
+                        <span style="font-family:var(--mono);font-size:0.65em;color:var(--muted);">
+                            yoğunluk: {row['Yogunluk']}
+                        </span>
+                    </div>
+                    <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
+                        <div style="height:100%;width:{bar_width}%;
+                                     background:linear-gradient(90deg,var(--green),rgba(0,255,136,0.4));
+                                     border-radius:2px;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Veri yok")
 
+        st.markdown("<div style='margin-top:12px;'>", unsafe_allow_html=True)
+
+        # ── LONG FLUSH CEPLERİ (AŞAĞI) ─────────────────────────
+        cat("⬇ LONG FLUSH CEPLERİ", "🔴")
+        st.caption("Fiyat düşerse tetiklenecek long likidasyon bölgeleri")
+        if liq_top_below:
+            for i, row in enumerate(liq_top_below):
+                bar_width = max(8, min(100, int(row["Yogunluk"])))
+                st.markdown(f"""
+                <div style="background:rgba(255,59,92,0.04);border:1px solid rgba(255,59,92,0.18);
+                             border-left:3px solid var(--red);border-radius:8px;
+                             padding:10px 14px;margin-bottom:6px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+                        <span style="font-family:var(--mono);font-size:0.95em;font-weight:700;
+                                      color:#fff;">{row['Fiyat']}</span>
+                        <span style="font-family:var(--mono);font-size:0.7em;color:var(--red);">
+                            {row['Mesafe']}
+                        </span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <span style="font-family:var(--mono);font-size:0.65em;color:var(--muted);">
+                            {row['Tip']}
+                        </span>
+                        <span style="font-family:var(--mono);font-size:0.65em;color:var(--muted);">
+                            yoğunluk: {row['Yogunluk']}
+                        </span>
+                    </div>
+                    <div style="height:4px;background:var(--bg3);border-radius:2px;overflow:hidden;">
+                        <div style="height:100%;width:{bar_width}%;
+                                     background:linear-gradient(90deg,var(--red),rgba(255,59,92,0.4));
+                                     border-radius:2px;"></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("Veri yok")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ── FUTURES KAYNAK VERİSİ ──────────────────────────────────
     st.markdown("<br>", unsafe_allow_html=True)
-    render_info_panel(
-        "Model Notes",
-        "Nasil Okunur?",
-        [
-            ("Long 25x / 50x", "Fiyat duserse alta dogru long flush ceplerini gosterir."),
-            ("Short 25x / 50x", "Fiyat yukselirse ustteki short squeeze ceplerini gosterir."),
-            ("Yakin cep", "Fiyata en yakin yogun tasfiye bolgesini verir."),
-            ("Guclu cep", "Toplam yogunlugu en yuksek tasfiye cebini verir."),
-        ],
-        badge_text="Estimated model",
-        badge_kind="signal-neutral",
-        copy="Gercek gizli pozisyonlari degil, kamuya acik futures veri setlerinden tahmini yogunluk katmani uretir.",
-    )
+    col_src, col_key = st.columns([1.6, 1])
+
+    with col_src:
+        cat("FUTURES KAYNAK VERİSİ", "📡")
+        if liq_src_rows:
+            src_df = pd.DataFrame(liq_src_rows)
+            st.dataframe(
+                src_df,
+                use_container_width=True,
+                hide_index=True,
+                column_config={
+                    "Agirlik": st.column_config.ProgressColumn(
+                        "Ağırlık",
+                        min_value=0,
+                        max_value=1.0,
+                        format="%.2f",
+                    )
+                }
+            )
+        st.caption("OI ve 24s hacim bazlı ağırlıklı ortalama; Binance kapalı ortamlarda zaman zaman bloklanabilir.")
+
+    with col_key:
+        cat("NASIL OKUNUR?", "📖")
+        st.markdown("""
+        <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:16px 18px;">
+            <div style="font-family:var(--mono);font-size:0.68em;color:var(--muted);
+                         line-height:2;letter-spacing:0.5px;">
+                <div style="margin-bottom:8px;">
+                    <span style="color:var(--red);font-weight:700;">⬇ LONG FLUSH</span><br>
+                    Fiyat aşağı giderse uzun pozisyonlar tasfiye edilir.
+                    Bu ceplerde ani düşüş ivmelenir.
+                </div>
+                <div style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+                    <span style="color:var(--green);font-weight:700;">⬆ SHORT SQUEEZE</span><br>
+                    Fiyat yukarı giderse short pozisyonlar tasfiye edilir.
+                    Bu ceplerde ani yükseliş ivmelenir.
+                </div>
+                <div style="border-top:1px solid var(--border);padding-top:8px;margin-bottom:8px;">
+                    <span style="color:var(--yellow);font-weight:700;">Yoğunluk Skoru</span><br>
+                    0-100 normalize. 50+ bölgeler yüksek risk taşır.
+                    Gerçek pozisyon verisi değil, tahmini modeldir.
+                </div>
+                <div style="border-top:1px solid var(--border);padding-top:8px;">
+                    <span style="color:var(--accent);font-weight:700;">Sıkışma Dağılımı</span><br>
+                    Alt vs üst ceplerin toplam yoğunluk karşılaştırması.
+                    Ağır olan taraf fiyat hareketi için daha çekici hedef.
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        st.caption("⚠️ Tahmini model. Gerçek gizli pozisyon verisi değildir.")
 
 
 # ── TAB 6: TÜM METRİKLER ─────────────────────────────────────
