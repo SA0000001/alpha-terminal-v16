@@ -256,7 +256,7 @@ def ai_raporu(v, takvim, haberler):
     takvim_str = "\n".join(f"- {x}" for x in takvim) if takvim else "- Veri yok"
     haber_str = "\n".join(f"- {x}" for x in haberler) if haberler else "- Haber yok"
     prompt = f"""
-Sen SA Finance Alpha Terminal icin sabah bulteni yazan Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisi ve quant analistsin.
+Sen SA Finance Alpha Terminal icin makro bulteni yazan Sen 20 yıllık deneyime sahip bir makro-kripto fon yöneticisi ve quant analistsin.
 Turkce, profesyonel, rakamsal bir bulten yaz. Her iddiayi sayi ile destekle. Derinlikli, rakamsal ve eyleme dönüşebilir bir bülten yaz.
 Asagidaki basliklari aynen kullan ve hicbirini atlama.
 
@@ -308,7 +308,7 @@ ZORUNLU KURALLAR:
 - Altcoin paragrafinda "genel durum" sonucu net olsun: haftalik bazda BTC'ye gore goreceli guc mu zayiflik mi var, 24 saatlik bazda senkron toparlanma mi ayrisma mi var bunu acikca soyle.
 
 KULLANILACAK BASLIKLAR:
-1. SA Finance Alpha Terminal Sabah Bulteni
+1. SA Finance Alpha Terminal Makro Bulteni
 2. Makro Ortam ve Risk Istahi
 3. BTC, Turev ve Order Book Analizi
 4. ETF, Stablecoin ve Market Cap Breadth
